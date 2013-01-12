@@ -1,0 +1,6 @@
+These tests are using 1 inch thick Retro-Reflective tape in a rectangle dimesioned at 12" by 9". These are the settings within the camera for the images in the folders that are in this directory.
+
+Color Level,50
+Brightness,25
+Sharpness,50
+Contrast,25
