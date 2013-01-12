@@ -39,8 +39,8 @@ in more detail in the cookbook.
 To allow vision processing, it is necessary to extend the WPICameraExtension
 with custom java code. The code currently implemented is in the repository named
 KrunchCV. To add the widget to the SmartDashboard,
-download the BasicCameraExtensionWidget either as a zip file or via Github
-cloning, navigate inside the dist folder, copy the BasicCameraExtensionWidget
+download KrunchCV either as a zip file or via Github
+cloning, navigate inside the dist folder, copy the KrunchCV
 jar file, navigate to where the SmartDashboard is installed (this is
 usually C:\Program Files\SmartDashboard\ in Windows), navigate to the
 extensions folder, and paste the jar file in there. Finally, start the
