@@ -3,7 +3,7 @@ Smart Dashboard Extensions
 for Client Vision Processing
 ---------------------------------------------------------------------
 
-The BasicCameraExtensionWidget is based off of 
+KrunchCV is based off of 
 team 341's vision processing widget and an example 
 from a WPILibCookbook.
 
@@ -37,15 +37,15 @@ the robot's code to perform data output and functions. This is covered
 in more detail in the cookbook.
 
 To allow vision processing, it is necessary to extend the WPICameraExtension
-with custom java code. There is a simple example in the repository named
-BasicCameraExtensionWidget. To add the widget to the SmartDashboard,
+with custom java code. The code currently implemented is in the repository named
+KrunchCV. To add the widget to the SmartDashboard,
 download the BasicCameraExtensionWidget either as a zip file or via Github
 cloning, navigate inside the dist folder, copy the BasicCameraExtensionWidget
 jar file, navigate to where the SmartDashboard is installed (this is
 usually C:\Program Files\SmartDashboard\ in Windows), navigate to the
 extensions folder, and paste the jar file in there. Finally, start the
 dashboard, go up to the top menu, and click View->Add->
-BasicCameraExtensionWidget.
+Krunch Target Tracker
 
 
 This code was compiled in Netbeans, however, it could be possible to compile in Eclipse.
@@ -66,11 +66,13 @@ directory.
 
 The javacv is a wrapper for the OpenCV library.
 
+For the code to work, the main class should be put in a package starting with "edu".
+
 Following the cookbook on page 72, override the processImage method after making a new class.
-The class must also have a main method. Refer to the example in the repository on how team 341
-accomplished that. Make sure all imports are in order, and Build and Clean the project. If everything
-worked, a dist folder should appear in the project folder in the Netbeans workspace (where it is stored
-on the filesystem). Copy the jar file from the dist folder and place it into the SmartDashboard's extensions
+The class implemented also has a main method so it can run as a standalone program for testing. 
+Make sure all imports are in order, and Build and Clean the project. If everything worked, a dist folder 
+should appear in the project folder in the Netbeans workspace (where it is stored on the filesystem). 
+Copy the jar file from the dist folder and place it into the SmartDashboard's extensions
 folder to add it to the dashboard.
 
 
