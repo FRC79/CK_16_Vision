@@ -36,17 +36,22 @@ public class KrunchCVWidget extends WPICameraExtension
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20)); // Slope of an acceptable horizontal line in degrees
     private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90-20)); // Slope of an acceptable vertical line in degrees
     private static final int kMinWidth = 20; // Contour ratio min width
+<<<<<<< HEAD
     private static final int kMaxWidth = 200; // Contour ratio max width
     private static final double kRangeOffset = 0.0;
+=======
+    private static final int kMaxWidth = 200; // Contour ration max width
+    private static final double kRangeOffset = 0.0; // Offset for adjusting range
+>>>>>>> Added a couple of code tweaks and more comments.
     private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
 
-    private static final double kShooterOffsetDeg = -1.55;
-    private static final double kHorizontalFOVDeg = 47.0;
+    private static final double kShooterOffsetDeg = -1.55; // Offset 
+    private static final double kHorizontalFOVDeg = 47.0; // Horizontal field of view of camera *NEEDS TO BE CHANGED FOR OUR CAMERA VERSION
 
-    private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg;
-    private static final double kCameraHeightIn = 54.0;
-    private static final double kCameraPitchDeg = 21.0;
-    private static final double kTopTargetHeightIn = 98.0 + 2.0 + 9.0; // 98 to rim, +2 to bottom of target, +9 to center of target
+    private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg; // Vertical field of view of camera *(FROM 640x480 images)
+    private static final double kCameraHeightIn = 54.0; // Height of camera from ground in inches
+    private static final double kCameraPitchDeg = 21.0; // Camera pitch degree (as in pitch, roll, yaw)
+    private static final double kTopTargetHeightIn = 98.0 + 2.0 + 9.0; // 98 to rim, +2 to bottom of target, +9 to center of target *OLD GAME
 
     private TreeMap<Double, Double> rangeTable;
 
@@ -296,9 +301,9 @@ public class KrunchCVWidget extends WPICameraExtension
 //                Robot.getTable().beginTransaction();
                 // Outputs values to the dashboard
                 Robot.getTable().putBoolean("found", true);
-                Robot.getTable().putValue("azimuth", azimuth);
-                Robot.getTable().putValue("range", range);
-                Robot.getTable().putValue("rpms", rpms);
+                Robot.getTable().putNumber("azimuth", azimuth);
+                Robot.getTable().putNumber("range", range);
+                Robot.getTable().putNumber("rpms", rpms);
 //                Robot.getTable().endTransaction();
             } else
             {
@@ -309,6 +314,7 @@ public class KrunchCVWidget extends WPICameraExtension
                 System.out.println("range: " + range);
                 System.out.println("rpms: " + rpms);
             }
+            // Draw outline around highest goal
             rawImage.drawPolygon(square, targetColor, 7);
         } else
         {
