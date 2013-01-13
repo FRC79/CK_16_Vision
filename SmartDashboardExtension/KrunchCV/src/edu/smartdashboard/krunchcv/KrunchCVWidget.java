@@ -36,7 +36,7 @@ public class KrunchCVWidget extends WPICameraExtension
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20)); // Slope of an acceptable horizontal line in degrees
     private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90-20)); // Slope of an acceptable vertical line in degrees
     private static final int kMinWidth = 20; // Contour ratio min width
-    private static final int kMaxWidth = 200; // Contour ration max width
+    private static final int kMaxWidth = 200; // Contour ratio max width
     private static final double kRangeOffset = 0.0;
     private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
 
@@ -235,7 +235,7 @@ public class KrunchCVWidget extends WPICameraExtension
                         slope = Math.abs(dy/dx); // Find slope of line
 
                     // Increment number of horizontal or vertical sides depending on if the slope is
-                    // closer to being horizontal or if the slope is closer to being verticle.
+                    // closer to being horizontal or if the slope is closer to being vertical.
                     if( slope < kNearlyHorizontalSlope )
                         ++numNearlyHorizontal;
                     else if( slope > kNearlyVerticalSlope )
@@ -243,7 +243,7 @@ public class KrunchCVWidget extends WPICameraExtension
                 }
 
                 // Since we assume the top line is horizontal, the funciton only requires that
-                // we have 1 nearly horizontal side and 2 nearly verticle sides to consider it
+                // we have 1 nearly horizontal side and 2 nearly vertical sides to consider it
                 // a target.
                 if(numNearlyHorizontal >= 1 && numNearlyVertical == 2)
                 {
