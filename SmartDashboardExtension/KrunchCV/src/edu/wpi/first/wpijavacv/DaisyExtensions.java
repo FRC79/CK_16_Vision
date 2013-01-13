@@ -74,6 +74,7 @@ public class DaisyExtensions
         opencv_imgproc.cvFindContours(tempImage, storage, contours, 256, opencv_imgproc.CV_RETR_LIST, opencv_imgproc.CV_CHAIN_APPROX_TC89_KCOS);
         ArrayList<WPIContour> results = new ArrayList();
         while (!WPIDisposable.isNull(contours)) {
+            // Sklansky's Algorithm
             CvSeq convexContour = opencv_imgproc.cvConvexHull2(contours, storage, opencv_imgproc.CV_CLOCKWISE, 1);
             WPIContour contour = new WPIContour(opencv_core.cvCloneSeq(convexContour, storage));
             results.add(contour);

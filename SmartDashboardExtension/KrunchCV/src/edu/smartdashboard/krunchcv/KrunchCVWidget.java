@@ -29,16 +29,16 @@ import javax.imageio.ImageIO;
  */
 public class KrunchCVWidget extends WPICameraExtension
 {
-    public static final String NAME = "Krunch Target Tracker";
-    private WPIColor targetColor = new WPIColor(0, 255, 0);
+    public static final String NAME = "Krunch Target Tracker"; // Name of widget in View->Add list
+    private WPIColor targetColor = new WPIColor(0, 255, 0); // Target color to be tracked from retro-reflectors
 
     // Constants that need to be tuned
-    private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20));
-    private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90-20));
-    private static final int kMinWidth = 20;
-    private static final int kMaxWidth = 200;
+    private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20)); // Slope of an acceptable horizontal line in degrees
+    private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90-20)); // Slope of an acceptable vertical line in degrees
+    private static final int kMinWidth = 20; // Contour ratio min width
+    private static final int kMaxWidth = 200; // Contour ration max width
     private static final double kRangeOffset = 0.0;
-    private static final int kHoleClosingIterations = 9;
+    private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
 
     private static final double kShooterOffsetDeg = -1.55;
     private static final double kHorizontalFOVDeg = 47.0;
@@ -143,15 +143,18 @@ public class KrunchCVWidget extends WPICameraExtension
             }
         }
 
+        // If size hasn't been initialized yet
         if( size == null || size.width() != rawImage.getWidth() || size.height() != rawImage.getHeight() )
         {
             size = opencv_core.cvSize(rawImage.getWidth(),rawImage.getHeight());
-            bin = IplImage.create(size, 8, 1);
+            bin = IplImage.create(size, 8, 1); // CvSize, depth, number of channels
             hsv = IplImage.create(size, 8, 3);
             hue = IplImage.create(size, 8, 1);
             sat = IplImage.create(size, 8, 1);
             val = IplImage.create(size, 8, 1);
             horizontalOffsetPixels =  (int)Math.round(kShooterOffsetDeg*(size.width()/kHorizontalFOVDeg));
+            
+            // Line points for line that goes down the middle of the image when outputed on the dashboard
             linePt1 = new WPIPoint(size.width()/2+horizontalOffsetPixels,size.height()-1);
             linePt2 = new WPIPoint(size.width()/2+horizontalOffsetPixels,0);
         }
@@ -186,6 +189,8 @@ public class KrunchCVWidget extends WPICameraExtension
         //result.showImage(bin.getBufferedImage());
 
         // Fill in any gaps using binary morphology
+        // Changing the 5th parameter changes the method, and changing the 6th parameter changes the number of iterations
+        // of the pixel extrapolation process.
         opencv_imgproc.cvMorphologyEx(bin, bin, null, morphKernel, opencv_imgproc.CV_MOP_CLOSE, kHoleClosingIterations);
 
         // Uncomment the next two lines to see the image post-morphology
@@ -222,26 +227,40 @@ public class KrunchCVWidget extends WPICameraExtension
                 int numNearlyVertical = 0;
                 for( int i = 0; i < 4; i++ )
                 {
-                    double dy = points[i].getY() - points[(i+1) % 4].getY();
-                    double dx = points[i].getX() - points[(i+1) % 4].getX();
+                    double dy = points[i].getY() - points[(i+1) % 4].getY(); // Change in Y from one point to the next
+                    double dx = points[i].getX() - points[(i+1) % 4].getX(); // Change in X from one point to the next
                     double slope = Double.MAX_VALUE;
+                    // If slope not 0, in other words not perfectly horizontal
                     if( dx != 0 )
-                        slope = Math.abs(dy/dx);
+                        slope = Math.abs(dy/dx); // Find slope of line
 
+                    // Increment number of horizontal or vertical sides depending on if the slope is
+                    // closer to being horizontal or if the slope is closer to being verticle.
                     if( slope < kNearlyHorizontalSlope )
                         ++numNearlyHorizontal;
                     else if( slope > kNearlyVerticalSlope )
                         ++numNearlyVertical;
                 }
 
+                // Since we assume the top line is horizontal, the funciton only requires that
+                // we have 1 nearly horizontal side and 2 nearly verticle sides to consider it
+                // a target.
                 if(numNearlyHorizontal >= 1 && numNearlyVertical == 2)
                 {
+                    // Draw a polygon overlay on the image
                     rawImage.drawPolygon(p, WPIColor.BLUE, 2);
 
+                    // Get center of polygon
                     int pCenterX = (p.getX() + (p.getWidth() / 2));
                     int pCenterY = (p.getY() + (p.getHeight() / 2));
 
+                    // Draw a large point emphasizing the center of the polygon
                     rawImage.drawPoint(new WPIPoint(pCenterX, pCenterY), targetColor, 5);
+                    
+                    // Picks the highest target
+                    // The origin of the coordinate system is at the top-left of the image,
+                    // which is why the comparison is less than. The height values get smaller
+                    // when they are higher up in reality.
                     if (pCenterY < highest) // Because coord system is funny
                     {
                         square = p;
@@ -251,10 +270,12 @@ public class KrunchCVWidget extends WPICameraExtension
             }
             else
             {
+                // Not an acceptable target
                 rawImage.drawPolygon(p, WPIColor.YELLOW, 1);
             }
         }
 
+        // If a target has been found
         if (square != null)
         {
             double x = square.getX() + (square.getWidth() / 2);
@@ -262,7 +283,9 @@ public class KrunchCVWidget extends WPICameraExtension
             double y = square.getY() + (square.getHeight() / 2);
             y = -((2 * (y / size.height())) - 1);
 
-            double azimuth = this.boundAngle0to360Degrees(x*kHorizontalFOVDeg/2.0 + heading - kShooterOffsetDeg);
+            // Find azimuth (horizontal degrees needed to line up with target). This is given as -180 being completely left,
+            // +180 being completely right, and 0 being completely lined up.
+            double azimuth = this.boundAngle0to180DegreesWithDirection(x*kHorizontalFOVDeg/2.0 + heading - kShooterOffsetDeg);
             double range = (kTopTargetHeightIn-kCameraHeightIn)/Math.tan((y*kVerticalFOVDeg/2.0 + kCameraPitchDeg)*Math.PI/180.0);
             double rpms = getRPMsForRange(range);
 
@@ -271,9 +294,11 @@ public class KrunchCVWidget extends WPICameraExtension
                   // Code commented out by Sebastian because some functions
                   // weren't found.
 //                Robot.getTable().beginTransaction();
+                // Outputs values to the dashboard
                 Robot.getTable().putBoolean("found", true);
-                Robot.getTable().putDouble("azimuth", azimuth);
-                Robot.getTable().putDouble("rpms", rpms);
+                Robot.getTable().putValue("azimuth", azimuth);
+                Robot.getTable().putValue("range", range);
+                Robot.getTable().putValue("rpms", rpms);
 //                Robot.getTable().endTransaction();
             } else
             {
@@ -297,7 +322,7 @@ public class KrunchCVWidget extends WPICameraExtension
             }
         }
 
-        // Draw a crosshair
+        // Draw a crosshair (line down the middle)
         rawImage.drawLine(linePt1, linePt2, targetColor, 2);
 
         DaisyExtensions.releaseMemory();
@@ -307,7 +332,7 @@ public class KrunchCVWidget extends WPICameraExtension
         return rawImage;
     }
 
-    private double boundAngle0to360Degrees(double angle)
+    private double boundAngle0to180DegreesWithDirection(double angle)
     {
         // Naive algorithm
         while(angle >= 360.0)
@@ -318,7 +343,8 @@ public class KrunchCVWidget extends WPICameraExtension
         {
             angle += 360.0;
         }
-        return angle;
+        
+        return angle - 180;
     }
 
     public static void main(String[] args)
