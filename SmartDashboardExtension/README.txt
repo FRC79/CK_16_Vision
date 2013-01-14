@@ -21,11 +21,9 @@ in a zip file.
 http://code.google.com/p/frc2012-team3929/wiki/VisionCoding
 Team 3929's wiki that may help with this topic.
 
-http://firstforge.wpi.edu/sf/frs/do/viewRelease/projects.smartdashboard/frs.installer.installer_1_0_3
-This is the download link for the SmartDashboard, which is
-necessary for this setup. It is an .exe, so Mac and Linux users
-should just download and extract the SmartDashboard.zip from this
-repository and run the SmartDashboard.jar.
+You can download the new 2012 version of the SmartDashboard from this
+repository reguardless of whether you are on Windows, Mac, or Linux. Download
+and extract the SmartDashboard.zip.
 
 Refer to the team 341 link for more details about the install.
 
@@ -41,8 +39,7 @@ with custom java code. The code currently implemented is in the repository named
 KrunchCV. To add the widget to the SmartDashboard,
 download KrunchCV either as a zip file or via Github
 cloning, navigate inside the dist folder, copy the KrunchCV
-jar file, navigate to where the SmartDashboard is installed (this is
-usually C:\Program Files\SmartDashboard\ in Windows), navigate to the
+jar file, navigate to where the SmartDashboard is installed, navigate to the
 extensions folder, and paste the jar file in there. Finally, start the
 dashboard, go up to the top menu, and click View->Add->
 Krunch Target Tracker
@@ -51,18 +48,18 @@ Krunch Target Tracker
 This code was compiled in Netbeans, however, it could be possible to compile in Eclipse.
 
 To create an extension project, create a new java project in Netbeans. Then, add the
-following libraries:
+following jar files to the project libraries:
 
-SmartDashboard.jar
+SmartDashboard2012.jar
 WPICameraExtension.jar
 javacpp.jar
 javacv.jar
 javacv-windows-x86.jar
 WPIJavaCV.jar
 
-These can be found in the install location of the SmartDashboard. The first is in the root
-directory, the second is in the extensions directory, and the rest are in the extensions\lib
-directory.
+These can be found in the install location of the SmartDashboard. The first is found
+in the root directory, the second in the extensions directory, and the rest in the 
+extensions/lib directory.
 
 The javacv is a wrapper for the OpenCV library.
 
