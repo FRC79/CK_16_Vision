@@ -27,8 +27,6 @@ import java.util.ArrayList;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.TreeMap;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
 
@@ -39,7 +37,9 @@ import javax.swing.JOptionPane;
 public class KrunchCVWidget extends WPICameraExtension implements NetworkListener
 {
     public static final String NAME = "Krunch Target Tracker"; // Name of widget in View->Add list
-    private WPIColor targetColor = new WPIColor(0, 255, 0); // Target color to be tracked from retro-reflectors
+    private WPIColor alignedColor = new WPIColor(0, 255, 0); // Color of overlay when camera is aligned with goal
+    private WPIColor unalignedColor = new WPIColor(255, 0, 0); // Color of overlay when camera is unaligned with goal
+    private WPIColor centerPointColor = new WPIColor(255, 255, 0); // Color of polygon center point
     
     // Constants that need to be tuned
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20)); // Slope of an acceptable horizontal line in degrees
@@ -49,13 +49,13 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private static final double kRangeOffset = 0.0; // Offset for adjusting range
     private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
 
-    private static final double kShooterOffsetDeg = -1.55; // Offset 
-    private static final double kHorizontalFOVDeg = 47.0; // Horizontal field of view of camera *NEEDS TO BE CHANGED FOR OUR CAMERA VERSION
+    private static final double kShooterOffsetDeg = 0.0; // Offset for shooter
+    private static final double kHorizontalFOVDeg = 40.0; // Horizontal field of view of camera
 
     private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg; // Vertical field of view of camera *(FROM 640x480 images)
-    private static final double kCameraHeightIn = 54.0; // Height of camera from ground in inches
-    private static final double kCameraPitchDeg = 21.0; // Camera pitch degree (as in pitch, roll, yaw)
-    private static final double kTopTargetHeightIn = 98.0 + 2.0 + 9.0; // 98 to rim, +2 to bottom of target, +9 to center of target *OLD GAME
+    private static final double kCameraHeightIn = 4.0 + 3.0/8.0; // Height of camera from ground in inches
+    private static final double kCameraPitchDeg = 20.0; // Camera pitch degree (as in pitch, roll, yaw)
+    private static final double kTopTargetHeightIn = 53.5;
 
     // Constants that pertain to HSV threshold value file
     private static final String DEFAULT_CSV_FILENAME = "hsv.txt";
@@ -511,7 +511,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                     int pCenterY = (p.getY() + (p.getHeight() / 2));
 
                     // Draw a large point emphasizing the center of the polygon
-                    rawImage.drawPoint(new WPIPoint(pCenterX, pCenterY), targetColor, 5);
+                    rawImage.drawPoint(new WPIPoint(pCenterX, pCenterY), centerPointColor, 5);
                     
                     // Picks the highest target
                     // The origin of the coordinate system is at the top-left of the image,
@@ -534,6 +534,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         // If a target has been found
         if (square != null)
         {
+            // Center X and Y
             double x = square.getX() + (square.getWidth() / 2);
             x = (2 * (x / size.width())) - 1;
             double y = square.getY() + (square.getHeight() / 2);
@@ -563,8 +564,19 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 System.out.println("range: " + range);
                 System.out.println("rpms: " + rpms);
             }
+            
             // Draw outline around highest goal
-            rawImage.drawPolygon(square, targetColor, 7);
+            if(square.getX() <= x && (square.getX() + square.getWidth()) >= x)
+            {
+                // Draw Aligned Outline
+                rawImage.drawPolygon(square, alignedColor, 7);
+            }
+            else
+            {
+                // Draw Unaligned Outline
+                rawImage.drawPolygon(square, unalignedColor, highest);
+            }
+            
         } else
         {
 
@@ -578,7 +590,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         }
 
         // Draw a crosshair (line down the middle)
-        rawImage.drawLine(linePt1, linePt2, targetColor, 2);
+        rawImage.drawLine(linePt1, linePt2, alignedColor, 2);
 
         DaisyExtensions.releaseMemory();
 
@@ -589,7 +601,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
 
     private double boundAngle0to180DegreesWithDirection(double angle)
     {
-        // Naive algorithm
+        // Find coterminal angle
         while(angle >= 360.0)
         {
             angle -= 360.0;
@@ -599,7 +611,16 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             angle += 360.0;
         }
         
-        return angle - 180;
+        // Bound left and right sides of circle to 180 degrees.
+        // The -1 indicates that it is left
+        if(angle > 180.0)
+        {
+            angle = (360.0 - angle) * -1;
+        }
+        
+        // Only output values between 40 and -40 (camera's FOV)
+        return angle;
+        
     }
 
     @Override
