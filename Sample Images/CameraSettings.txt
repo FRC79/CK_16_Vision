@@ -4,3 +4,5 @@ Color Level,50
 Brightness,25
 Sharpness,50
 Contrast,25
+
+The calculated field of view for the camera is roughly +/- 40 degrees, for a total of 80 degrees.
