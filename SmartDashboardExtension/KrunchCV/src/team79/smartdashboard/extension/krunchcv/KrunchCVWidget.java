@@ -24,6 +24,9 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.TreeMap;
@@ -61,25 +64,20 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private static final String DEFAULT_CSV_FILENAME = "KrunchCVSettings.txt";
     private static final String s_lineSeparator = System.getProperty("line.separator");
     
-    // SmartDashboard Key Values
-    private static final String brightKey = "BRIGHTNESS";
-    private static final String contrastKey = "CONTRAST";
-    private static final String hueMinKey = "HUE MIN";
-    private static final String hueMaxKey = "HUE MAX";
-    private static final String satMinKey = "SAT MIN";
-    private static final String satMaxKey = "SAT MAX";
-    private static final String valMinKey = "VAL MIN";
-    private static final String valMaxKey = "VAL MAX";
-    private static final String goalAlignToleranceKey = "G.O.A.T.";
+    // SmartDashboard Key Values (DOUBLES ONLY)
+    Map<String, Double> keyMap;
     
-    private static final String saveKey = "save";
+    private final String brightKey = "BRIGHTNESS";
+    private final String contrastKey = "CONTRAST";
+    private final String hueMinKey = "HUE MIN";
+    private final String hueMaxKey = "HUE MAX";
+    private final String satMinKey = "SAT MIN";
+    private final String satMaxKey = "SAT MAX";
+    private final String valMinKey = "VAL MIN";
+    private final String valMaxKey = "VAL MAX";
+    private final String goalAlignToleranceKey = "G.O.A.T.";
     
-    private double goalOverlayAlignTolerance;
-    
-    private double brightness, contrast;
-    private double hueMin, hueMax;
-    private double satMin, satMax;
-    private double valMin, valMax;
+    private static final String saveKey = "save"; // Boolean value
     
     private boolean saving = false;
     
@@ -130,6 +128,18 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         rangeTable.put(260.0, 5034.0+kRangeOffset);
         rangeTable.put(270.0, 5234.0+kRangeOffset);
         
+        // Create hashmap to store all values with keys
+        keyMap = new HashMap<String, Double>();
+        keyMap.put(brightKey, 0.0);
+        keyMap.put(contrastKey, 0.0);
+        keyMap.put(hueMinKey, 0.0);
+        keyMap.put(hueMaxKey, 0.0);
+        keyMap.put(satMinKey, 0.0);
+        keyMap.put(satMaxKey, 0.0);
+        keyMap.put(valMinKey, 0.0);
+        keyMap.put(valMaxKey, 0.0);
+        keyMap.put(goalAlignToleranceKey, 0.0);
+        
         try 
         {
             // Load HSV Threshold values from CSV File
@@ -175,51 +185,9 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 }
                 
                 // Change corresponding value
-                if(brightKey.equals(key))
-                {
-                    brightness = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(contrastKey.equals(key))
-                {
-                    contrast = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(hueMinKey.equals(key))
-                {
-                    hueMin = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(hueMaxKey.equals(key))
-                {
-                    hueMax = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(satMinKey.equals(key))
-                {
-                    satMin = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(satMaxKey.equals(key))
-                {
-                    satMax = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(valMinKey.equals(key))
-                {
-                    valMin = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(valMaxKey.equals(key))
-                {
-                    valMax = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
-                else if(goalAlignToleranceKey.equals(key))
-                {
-                    goalOverlayAlignTolerance = numValue;
-                    Robot.getTable().putDouble(key, numValue);
-                }
+                keyMap.put(key, numValue);
+                Robot.getTable().putDouble(key, numValue);
+                
             }
             fr.close();
             
@@ -227,29 +195,23 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             try {
                 // Create new file and add default values
                 FileWriter fw = new FileWriter(DEFAULT_CSV_FILENAME);
-                fw.write(brightKey + ", 0" + s_lineSeparator +
-                            contrastKey + ", 0" + s_lineSeparator +
-                            hueMinKey + ", 0" + s_lineSeparator +
-                            hueMaxKey + ", 0" + s_lineSeparator +
-                            satMinKey + ", 0" + s_lineSeparator +
-                            satMaxKey + ", 0" + s_lineSeparator +
-                            valMinKey + ", 0" + s_lineSeparator +
-                            valMaxKey + ", 0" + s_lineSeparator +
-                            goalAlignToleranceKey + ", 0" + s_lineSeparator);
+                
+                // Iterate through all keys to generate new default file
+                Iterator i = keyMap.entrySet().iterator();
+                while(i.hasNext())
+                {
+                    Map.Entry<String, Double> entry = (Map.Entry<String, Double>) i.next();
+                    fw.write(entry.getKey() + ", 0.0" + s_lineSeparator);
+                }
                 
                 fw.flush();
                 fw.close();
                 
                 // Set NetworkTable values to 0
-                Robot.getTable().putDouble(brightKey, 0);
-                Robot.getTable().putDouble(contrastKey, 0);
-                Robot.getTable().putDouble(hueMinKey, 0);
-                Robot.getTable().putDouble(hueMaxKey, 0);
-                Robot.getTable().putDouble(satMinKey, 0);
-                Robot.getTable().putDouble(satMaxKey, 0);
-                Robot.getTable().putDouble(valMinKey, 0);
-                Robot.getTable().putDouble(valMaxKey, 0);
-                Robot.getTable().putDouble(goalAlignToleranceKey, 0);
+                for(String mapKey : keyMap.keySet())
+                {
+                    Robot.getTable().putDouble(mapKey, 0.0);
+                }
                 
             } catch (IOException iEx) {
                 handleError(iEx);
@@ -268,17 +230,14 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                     // Create new file and add default values
                     FileWriter fw = new FileWriter(DEFAULT_CSV_FILENAME);
                     
-                    // Write keys in order
-                    fw.write(brightKey + ", " + Double.toString(brightness) + s_lineSeparator +
-                                contrastKey + ", " + Double.toString(contrast) + s_lineSeparator +
-                                hueMinKey + ", " + Double.toString(hueMin) + s_lineSeparator +
-                                hueMaxKey + ", " + Double.toString(hueMax) + s_lineSeparator +
-                                satMinKey + ", " + Double.toString(satMin) + s_lineSeparator +
-                                satMaxKey + ", " + Double.toString(satMax) + s_lineSeparator +
-                                valMinKey + ", " + Double.toString(valMin) + s_lineSeparator +
-                                valMaxKey + ", " + Double.toString(valMax) + s_lineSeparator +
-                                goalAlignToleranceKey + ", " + Double.toString(goalOverlayAlignTolerance) + s_lineSeparator);
-
+                    // Iterate through all keys and write current values to file
+                    Iterator i = keyMap.entrySet().iterator();
+                    while(i.hasNext())
+                    {
+                        Map.Entry<String, Double> entry = (Map.Entry<String, Double>) i.next();
+                        fw.write(entry.getKey() + ", " + Double.toString(entry.getValue()) + s_lineSeparator);
+                    }
+                    
                     fw.flush();
                     fw.close();
                 } 
@@ -304,16 +263,10 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private void updateLocalSettings()
     {
         // Assign Settings Values from SmartDashboard.
-        brightness = Robot.getTable().getDouble(brightKey);
-        contrast = Robot.getTable().getDouble(contrastKey);
-        hueMin = Robot.getTable().getDouble(hueMinKey);
-        hueMax = Robot.getTable().getDouble(hueMaxKey);
-        satMin = Robot.getTable().getDouble(satMinKey);
-        satMax = Robot.getTable().getDouble(satMaxKey);
-        valMin = Robot.getTable().getDouble(valMinKey);
-        valMax = Robot.getTable().getDouble(valMaxKey);
-        
-        goalOverlayAlignTolerance = Robot.getTable().getDouble(goalAlignToleranceKey);
+        for(String mapKey : keyMap.keySet())
+        {
+            keyMap.put(mapKey, Robot.getTable().getDouble(mapKey));
+        }
     }
     
     public double getRPMsForRange(double range)
@@ -397,16 +350,16 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         // because if you call INV second, you will overwrite the hue1 init image.
         
         // Take input of hue1(init image), output of function to hue2(Output is a binary image)
-        opencv_imgproc.cvThreshold(hue1, hue2, hueMax, 255, opencv_imgproc.CV_THRESH_BINARY_INV);
-        opencv_imgproc.cvThreshold(hue1, hue1, hueMin, 255, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(hue1, hue2, keyMap.get(hueMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(hue1, hue1, keyMap.get(hueMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
 
         // Saturation
-        opencv_imgproc.cvThreshold(sat1, sat2, satMax, 255, opencv_imgproc.CV_THRESH_BINARY_INV);
-        opencv_imgproc.cvThreshold(sat1, sat1, satMin, 255, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(sat1, sat2, keyMap.get(satMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(sat1, sat1, keyMap.get(satMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
 
         // Value
-        opencv_imgproc.cvThreshold(val1, val2, valMax, 255, opencv_imgproc.CV_THRESH_BINARY_INV);
-        opencv_imgproc.cvThreshold(val1, val1, valMin, 255, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(val1, val2, keyMap.get(valMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(val1, val1, keyMap.get(valMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
 
         
         // Combine the results to obtain our binary image which should for the most
@@ -551,7 +504,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             
             // Draw outline around highest goal
             double centerX = square.getX() + square.getWidth()/2;
-            if(centerX >= linePt1.getX()-goalOverlayAlignTolerance && centerX <= linePt1.getX()+goalOverlayAlignTolerance)
+            if(centerX >= linePt1.getX()-keyMap.get(goalAlignToleranceKey) && centerX <= linePt1.getX()+keyMap.get(goalAlignToleranceKey))
             {
                 // Draw Aligned Outline
                 rawImage.drawPolygon(square, alignedColor, 7);
@@ -635,9 +588,17 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     public void valueChanged(String key, Object value) {
         
         // If key value was changed concerning this widget
-        if(brightKey.equals(key) || contrastKey.equals(key) || hueMinKey.equals(key) ||
-                hueMaxKey.equals(key) || satMinKey.equals(key) || satMaxKey.equals(key) || 
-                valMinKey.equals(key) || valMaxKey.equals(key) || goalAlignToleranceKey.equals(key))
+        boolean concernsUs = false;
+        for(String mapKey : keyMap.keySet())
+        {
+            // If key is needed by this program
+            if(mapKey.equals(key))
+            {
+                concernsUs = true;
+            }
+        }
+        
+        if(concernsUs)
         {
             // Reload the values into the widget
             this.updateLocalSettings();
