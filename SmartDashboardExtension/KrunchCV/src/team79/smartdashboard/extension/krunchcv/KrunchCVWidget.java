@@ -48,7 +48,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private static final int kMaxWidth = 200; // Contour ration max width
     private static final double kRangeOffset = 0.0; // Offset for adjusting range
     private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
-
+    
     private static final double kShooterOffsetDeg = 0.0; // Offset for shooter
     private static final double kHorizontalFOVDeg = 40.0; // Horizontal field of view of camera
 
@@ -58,25 +58,30 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private static final double kTopTargetHeightIn = 53.5;
 
     // Constants that pertain to HSV threshold value file
-    private static final String DEFAULT_CSV_FILENAME = "hsv.txt";
+    private static final String DEFAULT_CSV_FILENAME = "KrunchCVSettings.txt";
     private static final String s_lineSeparator = System.getProperty("line.separator");
     
-    // Camera Settings and HSV filter threshold values
+    // SmartDashboard Key Values
     private static final String brightKey = "BRIGHTNESS";
     private static final String contrastKey = "CONTRAST";
     private static final String hueMinKey = "HUE MIN";
     private static final String hueMaxKey = "HUE MAX";
-    private static final String hueInvMinKey = "HUE INV MIN";
-    private static final String hueInvMaxKey = "HUE INV MAX";
     private static final String satMinKey = "SAT MIN";
     private static final String satMaxKey = "SAT MAX";
     private static final String valMinKey = "VAL MIN";
     private static final String valMaxKey = "VAL MAX";
+    private static final String goalAlignToleranceKey = "G.O.A.T.";
+    
+    private static final String saveKey = "save";
+    
+    private double goalOverlayAlignTolerance;
     
     private double brightness, contrast;
-    private double hueMin, hueMax, hueInvMin, hueInvMax;
+    private double hueMin, hueMax;
     private double satMin, satMax;
     private double valMin, valMax;
+    
+    private boolean saving = false;
     
     private TreeMap<Double, Double> rangeTable;
 
@@ -87,11 +92,11 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private WPIContour[] contours;
     private ArrayList<WPIPolygon> polygons;
     private IplConvKernel morphKernel;
-    private IplImage bin;
+    private IplImage bin; // Container for binary image
     private IplImage hsv;
-    private IplImage hue;
-    private IplImage sat;
-    private IplImage val;
+    private IplImage hue1, hue2;
+    private IplImage sat1, sat2;
+    private IplImage val1, val2;
     private WPIPoint linePt1;
     private WPIPoint linePt2;
     private int horizontalOffsetPixels;
@@ -128,11 +133,11 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         try 
         {
             // Load HSV Threshold values from CSV File
-            this.loadFileWithHSVThresholdValues();
+            this.loadSettingsFile();
         } 
         catch (IOException ex) 
         {
-            ex.printStackTrace();
+            handleError(ex);
         }
         
         // Init NetworkListener for changed keys
@@ -141,7 +146,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         DaisyExtensions.init();
     }
     
-    private void loadFileWithHSVThresholdValues() throws IOException
+    private void loadSettingsFile() throws IOException
     {
         try {
             FileReader fr = new FileReader(DEFAULT_CSV_FILENAME);
@@ -149,69 +154,71 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             String buffer;
             while((buffer = br.readLine()) != null)
             {
-                // Check to see if this isn't the first line,
-                // which just shows the names of the values.
-                if(!(buffer.startsWith("B")))
+                // Remove unwanted line separators
+                buffer = buffer.replace(s_lineSeparator, "");
+                
+                String key = "";
+                double numValue = 0.0;
+                
+                // Get key and value
+                if(buffer.contains(","))
                 {
-                    // Take out any newlines in the string
-                    buffer = buffer.replace(s_lineSeparator, "");
-                    
-                    // Split buffer string into array of values delimited
-                    // by the comma.
-                    String[] vals = buffer.split(",");
-                    
-                    for(int i=0; i < vals.length; i++)
-                    {
-                        // Convert string to double
-                        double numberVal = Double.valueOf(vals[i]);
-                        
-                        // Assign to value in the widget
-                        switch(i)
-                        {
-                            case 0:
-                                brightness = numberVal;
-                                Robot.getTable().putDouble(brightKey, numberVal);
-                                break;
-                            case 1:
-                                contrast = numberVal;
-                                Robot.getTable().putDouble(contrastKey, numberVal);
-                                break;
-                            case 2:
-                                hueMin = numberVal;
-                                Robot.getTable().putDouble(hueMinKey, numberVal);
-                                break;
-                            case 3:
-                                hueMax = numberVal;
-                                Robot.getTable().putDouble(hueMaxKey, numberVal);
-                                break;
-                            case 4:
-                                hueInvMin = numberVal;
-                                Robot.getTable().putDouble(hueInvMinKey, numberVal);
-                                break;
-                            case 5:
-                                hueInvMax = numberVal;
-                                Robot.getTable().putDouble(hueInvMaxKey, numberVal);
-                                break;
-                            case 6:
-                                satMin = numberVal;
-                                Robot.getTable().putDouble(satMinKey, numberVal);
-                                break;
-                            case 7:
-                                satMax = numberVal;
-                                Robot.getTable().putDouble(satMaxKey, numberVal);
-                                break;
-                            case 8:
-                                valMin = numberVal;
-                                Robot.getTable().putDouble(valMinKey, numberVal);
-                                break;
-                            case 9:
-                                valMax = numberVal;
-                                Robot.getTable().putDouble(valMaxKey, numberVal);
-                                break;
-                            default:
-                                break;
-                        }
-                    }
+                    String[] temp = buffer.split(",");
+                    key = temp[0];
+                    numValue = Double.valueOf(temp[1]);
+                }
+                else if(buffer.contains(", "))
+                {
+                    String[] temp = buffer.split(", ");
+                    key = temp[0];
+                    numValue = Double.valueOf(temp[1]);
+                }
+                
+                // Change corresponding value
+                if(brightKey.equals(key))
+                {
+                    brightness = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(contrastKey.equals(key))
+                {
+                    contrast = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(hueMinKey.equals(key))
+                {
+                    hueMin = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(hueMaxKey.equals(key))
+                {
+                    hueMax = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(satMinKey.equals(key))
+                {
+                    satMin = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(satMaxKey.equals(key))
+                {
+                    satMax = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(valMinKey.equals(key))
+                {
+                    valMin = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(valMaxKey.equals(key))
+                {
+                    valMax = numValue;
+                    Robot.getTable().putDouble(key, numValue);
+                }
+                else if(goalAlignToleranceKey.equals(key))
+                {
+                    goalOverlayAlignTolerance = numValue;
+                    Robot.getTable().putDouble(key, numValue);
                 }
             }
             fr.close();
@@ -220,10 +227,16 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             try {
                 // Create new file and add default values
                 FileWriter fw = new FileWriter(DEFAULT_CSV_FILENAME);
-                fw.write("Brightness, Contrast, Hue-Min, Hue-Max, Hue-Inv-Min, "
-                            + "Hue-Inv-Max, Sat-Min, Sat-Max, Val-Min, Val-Max"
-                            + s_lineSeparator);
-                fw.write("0,0,0,0,0,0,0,0,0,0" + s_lineSeparator);
+                fw.write(brightKey + ", 0" + s_lineSeparator +
+                            contrastKey + ", 0" + s_lineSeparator +
+                            hueMinKey + ", 0" + s_lineSeparator +
+                            hueMaxKey + ", 0" + s_lineSeparator +
+                            satMinKey + ", 0" + s_lineSeparator +
+                            satMaxKey + ", 0" + s_lineSeparator +
+                            valMinKey + ", 0" + s_lineSeparator +
+                            valMaxKey + ", 0" + s_lineSeparator +
+                            goalAlignToleranceKey + ", 0" + s_lineSeparator);
+                
                 fw.flush();
                 fw.close();
                 
@@ -232,25 +245,19 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 Robot.getTable().putDouble(contrastKey, 0);
                 Robot.getTable().putDouble(hueMinKey, 0);
                 Robot.getTable().putDouble(hueMaxKey, 0);
-                Robot.getTable().putDouble(hueInvMinKey, 0);
-                Robot.getTable().putDouble(hueInvMaxKey, 0);
                 Robot.getTable().putDouble(satMinKey, 0);
                 Robot.getTable().putDouble(satMaxKey, 0);
                 Robot.getTable().putDouble(valMinKey, 0);
                 Robot.getTable().putDouble(valMaxKey, 0);
+                Robot.getTable().putDouble(goalAlignToleranceKey, 0);
                 
             } catch (IOException iEx) {
-                iEx.printStackTrace();
-                JOptionPane.showMessageDialog(null,
-                        "An error occurred when attempting to "
-                        + "open the HSV CSV file for writing. ",
-                        "Unable to Open CSV File",
-                        JOptionPane.ERROR_MESSAGE);
+                handleError(iEx);
             }
         }
     }
     
-    private void saveFileWithHSVThresholdValues()
+    private void saveSettingsFile()
     {
         Thread saveThread;
         saveThread = new Thread(){
@@ -260,67 +267,33 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 {
                     // Create new file and add default values
                     FileWriter fw = new FileWriter(DEFAULT_CSV_FILENAME);
-                    fw.write("Brightness, Contrast, Hue-Min, Hue-Max, Hue-Inv-Min, "
-                                + "Hue-Inv-Max, Sat-Min, Sat-Max, Val-Min, Val-Max"
-                                + s_lineSeparator);
-
-                    // Write values to file in order
-                    fw.write(Double.toString(brightness) + "," +
-                                Double.toString(contrast) + "," + 
-                                Double.toString(hueMin) + "," +
-                                Double.toString(hueMax) + "," +
-                                Double.toString(hueInvMin) + "," +
-                                Double.toString(hueInvMax) + "," +
-                                Double.toString(satMin) + "," +
-                                Double.toString(satMax) + "," +
-                                Double.toString(valMin) + "," +
-                                Double.toString(valMax) + s_lineSeparator);
+                    
+                    // Write keys in order
+                    fw.write(brightKey + ", " + Double.toString(brightness) + s_lineSeparator +
+                                contrastKey + ", " + Double.toString(contrast) + s_lineSeparator +
+                                hueMinKey + ", " + Double.toString(hueMin) + s_lineSeparator +
+                                hueMaxKey + ", " + Double.toString(hueMax) + s_lineSeparator +
+                                satMinKey + ", " + Double.toString(satMin) + s_lineSeparator +
+                                satMaxKey + ", " + Double.toString(satMax) + s_lineSeparator +
+                                valMinKey + ", " + Double.toString(valMin) + s_lineSeparator +
+                                valMaxKey + ", " + Double.toString(valMax) + s_lineSeparator +
+                                goalAlignToleranceKey + ", " + Double.toString(goalOverlayAlignTolerance) + s_lineSeparator);
 
                     fw.flush();
                     fw.close();
                 } 
                 catch (FileNotFoundException ex) 
                 {
-                    FileWriter fw = null;
-                    try {
-                        fw = new FileWriter(DEFAULT_CSV_FILENAME);
-                        fw.write("Brightness, Contrast, Hue-Min, Hue-Max, Hue-Inv-Min, "
-                                    + "Hue-Inv-Max, Sat-Min, Sat-Max, Val-Min, Val-Max"
-                                    + s_lineSeparator);
-                        
-                        // Write values to file in order
-                        fw.write(Double.toString(brightness) + "," +
-                                    Double.toString(contrast) + "," + 
-                                    Double.toString(hueMin) + "," +
-                                    Double.toString(hueMax) + "," +
-                                    Double.toString(hueInvMin) + "," +
-                                    Double.toString(hueInvMax) + "," +
-                                    Double.toString(satMin) + "," +
-                                    Double.toString(satMax) + "," +
-                                    Double.toString(valMin) + "," +
-                                    Double.toString(valMax) + s_lineSeparator);
-                        
-                        fw.flush();
-                        fw.close();
-                        
-                    } catch (IOException ioEx) {
-                        ioEx.printStackTrace();
-                        JOptionPane.showMessageDialog(null,
-                            "An error occurred when attempting to "
-                            + "open the HSV CSV file for writing. ",
-                            "Unable to Open CSV File",
-                            JOptionPane.ERROR_MESSAGE);
-                    }
+                    handleError(ex);
                 }
                 catch (IOException iEx)
                 {
-                    iEx.printStackTrace();
-                    JOptionPane.showMessageDialog(null,
-                        "An error occurred when attempting to "
-                        + "open the HSV CSV file for writing. ",
-                        "Unable to Open CSV File",
-                        JOptionPane.ERROR_MESSAGE);
+                    handleError(iEx);
                 }
+                
+                // State the save is finished
+                Robot.getPreferences().putBoolean(saveKey, false);
+                saving = false;
               }
         };
         
@@ -328,20 +301,19 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         saveThread.start();
     }
     
-    private void getHSVThresholdValues()
+    private void updateLocalSettings()
     {
-        // Assign HSV filter threshold values from the SmartDashboard.
-        
+        // Assign Settings Values from SmartDashboard.
         brightness = Robot.getTable().getDouble(brightKey);
         contrast = Robot.getTable().getDouble(contrastKey);
         hueMin = Robot.getTable().getDouble(hueMinKey);
         hueMax = Robot.getTable().getDouble(hueMaxKey);
-        hueInvMin = Robot.getTable().getDouble(hueInvMinKey);
-        hueInvMax = Robot.getTable().getDouble(hueInvMaxKey);
         satMin = Robot.getTable().getDouble(satMinKey);
         satMax = Robot.getTable().getDouble(satMaxKey);
         valMin = Robot.getTable().getDouble(valMinKey);
         valMax = Robot.getTable().getDouble(valMaxKey);
+        
+        goalOverlayAlignTolerance = Robot.getTable().getDouble(goalAlignToleranceKey);
     }
     
     public double getRPMsForRange(double range)
@@ -395,11 +367,14 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         if( size == null || size.width() != rawImage.getWidth() || size.height() != rawImage.getHeight() )
         {
             size = opencv_core.cvSize(rawImage.getWidth(),rawImage.getHeight());
-            bin = IplImage.create(size, 8, 1); // CvSize, depth, number of channels
-            hsv = IplImage.create(size, 8, 3);
-            hue = IplImage.create(size, 8, 1);
-            sat = IplImage.create(size, 8, 1);
-            val = IplImage.create(size, 8, 1);
+            bin = IplImage.create(size, 8, 1); // Binary image container
+            hsv = IplImage.create(size, 8, 3); // CvSize, depth, number of channels
+            hue1 = IplImage.create(size, 8, 1);
+            hue2 = IplImage.create(size, 8, 1);
+            sat1 = IplImage.create(size, 8, 1);
+            sat2 = IplImage.create(size, 8, 1);
+            val1 = IplImage.create(size, 8, 1);
+            val2 = IplImage.create(size, 8, 1);
             horizontalOffsetPixels =  (int)Math.round(kShooterOffsetDeg*(size.width()/kHorizontalFOVDeg));
             
             // Line points for line that goes down the middle of the image when outputed on the dashboard
@@ -411,27 +386,37 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
 
         // Convert to HSV color space
         opencv_imgproc.cvCvtColor(input, hsv, opencv_imgproc.CV_BGR2HSV);
-        opencv_core.cvSplit(hsv, hue, sat, val, null);
+        opencv_core.cvSplit(hsv, hue1, sat1, val1, null);       // Init to first IplImage
 
         // Threshold each component separately
         // Hue
         // NOTE: Red is at the end of the color space, so you need to OR together
         // a thresh and inverted thresh in order to get points that are red
-        opencv_imgproc.cvThreshold(hue, bin, hueMin, hueMax, opencv_imgproc.CV_THRESH_BINARY);
-        opencv_imgproc.cvThreshold(hue, hue, hueInvMin, hueInvMax, opencv_imgproc.CV_THRESH_BINARY_INV);
+        
+        // INV is for the Upper thresholds. Note that THE ORDER YOU CALL THE FUNCTIONS MATTER
+        // because if you call INV second, you will overwrite the hue1 init image.
+        
+        // Take input of hue1(init image), output of function to hue2(Output is a binary image)
+        opencv_imgproc.cvThreshold(hue1, hue2, hueMax, 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(hue1, hue1, hueMin, 255, opencv_imgproc.CV_THRESH_BINARY);
 
         // Saturation
-        opencv_imgproc.cvThreshold(sat, sat, satMin, satMax, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(sat1, sat2, satMax, 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(sat1, sat1, satMin, 255, opencv_imgproc.CV_THRESH_BINARY);
 
         // Value
-        opencv_imgproc.cvThreshold(val, val, valMin, valMax, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(val1, val2, valMax, 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(val1, val1, valMin, 255, opencv_imgproc.CV_THRESH_BINARY);
 
         
         // Combine the results to obtain our binary image which should for the most
-        // part only contain pixels that we care about
-        opencv_core.cvAnd(hue, bin, bin, null);
-        opencv_core.cvAnd(bin, sat, bin, null);
-        opencv_core.cvAnd(bin, val, bin, null);
+        // part only contain pixels that we care about (Bin is initialized with cvAnd of hue1 and hue2
+        // and then is bitwise anded incrementally with each new thresholded image
+          opencv_core.cvAnd(hue1, hue2, bin, null);
+          opencv_core.cvAnd(sat1, bin, bin, null);
+          opencv_core.cvAnd(sat2, bin, bin, null);
+          opencv_core.cvAnd(val1, bin, bin, null);
+          opencv_core.cvAnd(val2, bin, bin, null);
 
         // Uncomment the next two lines to see the raw binary image
         //CanvasFrame result = new CanvasFrame("binary");
@@ -534,7 +519,6 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         // If a target has been found
         if (square != null)
         {
-            // Center X and Y
             double x = square.getX() + (square.getWidth() / 2);
             x = (2 * (x / size.width())) - 1;
             double y = square.getY() + (square.getHeight() / 2);
@@ -566,7 +550,8 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             }
             
             // Draw outline around highest goal
-            if(square.getX() <= x && (square.getX() + square.getWidth()) >= x)
+            double centerX = square.getX() + square.getWidth()/2;
+            if(centerX >= linePt1.getX()-goalOverlayAlignTolerance && centerX <= linePt1.getX()+goalOverlayAlignTolerance)
             {
                 // Draw Aligned Outline
                 rawImage.drawPolygon(square, alignedColor, 7);
@@ -574,7 +559,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             else
             {
                 // Draw Unaligned Outline
-                rawImage.drawPolygon(square, unalignedColor, highest);
+                rawImage.drawPolygon(square, unalignedColor, 7);
             }
             
         } else
@@ -596,6 +581,20 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
 
         //System.gc();
 
+        // Look to see if button was pressed to save settings
+        try{
+            if(Robot.getPreferences().getBoolean(saveKey) && !saving){
+                this.saveSettingsFile();
+                saving = true;
+            }
+        }
+        catch( NoSuchElementException e)
+        {
+        }
+        catch( IllegalArgumentException e )
+        {
+        }
+        
         return rawImage;
     }
 
@@ -618,25 +617,30 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             angle = (360.0 - angle) * -1;
         }
         
-        // Only output values between 40 and -40 (camera's FOV)
         return angle;
         
     }
 
+    private void handleError(Exception e)
+    {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(null,
+            "An error occurred when attempting to "
+            + "open the CSV file for writing. ",
+            "Unable to Open CSV File",
+            JOptionPane.ERROR_MESSAGE);
+    }
+    
     @Override
     public void valueChanged(String key, Object value) {
         
         // If key value was changed concerning this widget
         if(brightKey.equals(key) || contrastKey.equals(key) || hueMinKey.equals(key) ||
-                hueMaxKey.equals(key) || hueInvMinKey.equals(key) || hueInvMaxKey.equals(key) ||
-                satMinKey.equals(key) || satMaxKey.equals(key) || valMinKey.equals(key) ||
-                valMaxKey.equals(key))
+                hueMaxKey.equals(key) || satMinKey.equals(key) || satMaxKey.equals(key) || 
+                valMinKey.equals(key) || valMaxKey.equals(key) || goalAlignToleranceKey.equals(key))
         {
             // Reload the values into the widget
-            this.getHSVThresholdValues();
-            
-            // Write new values to HSV Threshold values file
-            this.saveFileWithHSVThresholdValues();
+            this.updateLocalSettings();
         }
     }
 
@@ -648,7 +652,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     @Override
     public void disconnect() {
         // Save HSV Threshold values when widget is removed.
-        this.saveFileWithHSVThresholdValues();
+        this.saveSettingsFile();
     }
     
     
