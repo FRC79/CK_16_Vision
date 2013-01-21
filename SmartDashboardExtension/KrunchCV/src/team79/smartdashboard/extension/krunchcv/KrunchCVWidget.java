@@ -16,7 +16,9 @@ import edu.wpi.first.wpijavacv.WPIContour;
 import edu.wpi.first.wpijavacv.WPIImage;
 import edu.wpi.first.wpijavacv.WPIPoint;
 import edu.wpi.first.wpijavacv.WPIPolygon;
-import edu.wpi.first.wpilibj.networking.NetworkListener;
+import edu.wpi.first.wpilibj.networktables.NetworkTable;
+import edu.wpi.first.wpilibj.tables.ITable;
+import edu.wpi.first.wpilibj.tables.ITableListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -29,7 +31,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
-import java.util.TreeMap;
 import javax.imageio.ImageIO;
 import javax.swing.JOptionPane;
 
@@ -37,7 +38,7 @@ import javax.swing.JOptionPane;
  *
  * @author sebastian
  */
-public class KrunchCVWidget extends WPICameraExtension implements NetworkListener
+public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 {
     public static final String NAME = "Krunch Target Tracker"; // Name of widget in View->Add list
     private WPIColor alignedColor = new WPIColor(0, 255, 0); // Color of overlay when camera is aligned with goal
@@ -47,26 +48,29 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     // Constants that need to be tuned
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20)); // Slope of an acceptable horizontal line in degrees
     private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90-20)); // Slope of an acceptable vertical line in degrees
-    private static final int kMinWidth = 20; // Contour ratio min width
-    private static final int kMaxWidth = 200; // Contour ration max width
-    private static final double kRangeOffset = 0.0; // Offset for adjusting range
+    private static final int kMinWidthRectGoals = 20; // Contour width ratios of rectangular goals
+    private static final int kMaxWidthRectGoals = 200;
+    private static final int kMinWidthPyramidHGoals = 20; // Contour width ratios of pyramid horizontal goals *NEEDS TO BE CHANGED
+    private static final int kMaxWidthPyramidHGoals = 200;
+    private static final int kMinWidthPyramidVGoals = 20; // Contour width ratios of pyramid vertical goals *NEEDS TO BE CHANGED
+    private static final int kMaxWidthPyramidVGoals = 200;
     private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
     
     private static final double kShooterOffsetDeg = 0.0; // Offset for shooter
     private static final double kHorizontalFOVDeg = 40.0; // Horizontal field of view of camera
 
     private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg; // Vertical field of view of camera *(FROM 640x480 images)
-    private static final double kCameraHeightIn = 4.0 + 3.0/8.0; // Height of camera from ground in inches
-    private static final double kCameraPitchDeg = 20.0; // Camera pitch degree (as in pitch, roll, yaw)
-    private static final double kTopTargetHeightIn = 53.5;
 
     // Constants that pertain to HSV threshold value file
     private static final String DEFAULT_CSV_FILENAME = "KrunchCVSettings.txt";
     private static final String s_lineSeparator = System.getProperty("line.separator");
     
     // SmartDashboard Key Values (DOUBLES ONLY)
-    Map<String, Double> keyMap;
+    Map<String, Object> keyMap;
     
+    private final String teamNumberKey = "TEAM NUMBER";
+    private final String ipKey = "IP";
+    private final String tableNameKey = "TABLE NAME";
     private final String brightKey = "BRIGHTNESS";
     private final String contrastKey = "CONTRAST";
     private final String hueMinKey = "HUE MIN";
@@ -76,19 +80,24 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     private final String valMinKey = "VAL MIN";
     private final String valMaxKey = "VAL MAX";
     private final String goalAlignToleranceKey = "G.O.A.T.";
+    private final String cameraHeightInchesKey = "Camera Height in Inches"; // Height of camera from ground in inches
+    private final String cameraPitchDegKey = "Camera Pitch Degree"; // Camera pitch degree (as in pitch, roll, yaw)
+    private final String topTargetHeightInchesKey = "Top Target Height Inches"; // Height of the top target
     
     private static final String saveKey = "save"; // Boolean value
     
     private boolean saving = false;
-    
-    private TreeMap<Double, Double> rangeTable;
 
     private boolean m_debugMode = false;
 
+    private NetworkTable netTable = null;
+    
     // Store JavaCV temporaries as members to reduce memory management during processing
     private CvSize size = null;
     private WPIContour[] contours;
-    private ArrayList<WPIPolygon> polygons;
+    private ArrayList<WPIPolygon> rectGoalPolygons, pyramidGoalHPolygons, pyramidGoalVPolygons;
+    private ArrayList<HorizontalPyramidRect> horizontalPyramidRects;
+    private ArrayList<VerticalPyramidRect> verticalPyramidRects;
     private IplConvKernel morphKernel;
     private IplImage bin; // Container for binary image
     private IplImage hsv;
@@ -108,28 +117,10 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
     {
         m_debugMode = debug;
         morphKernel = IplConvKernel.create(3, 3, 1, 1, opencv_imgproc.CV_SHAPE_RECT, null);
-
-        rangeTable = new TreeMap<Double,Double>();
-        //rangeTable.put(110.0, 3800.0+kRangeOffset);
-        //rangeTable.put(120.0, 3900.0+kRangeOffset);
-        //rangeTable.put(130.0, 4000.0+kRangeOffset);
-        rangeTable.put(140.0, 3434.0+kRangeOffset);
-        rangeTable.put(150.0, 3499.0+kRangeOffset);
-        rangeTable.put(160.0, 3544.0+kRangeOffset);
-        rangeTable.put(170.0, 3574.0+kRangeOffset);
-        rangeTable.put(180.0, 3609.0+kRangeOffset);
-        rangeTable.put(190.0, 3664.0+kRangeOffset);
-        rangeTable.put(200.0, 3854.0+kRangeOffset);
-        rangeTable.put(210.0, 4034.0+kRangeOffset);
-        rangeTable.put(220.0, 4284.0+kRangeOffset);
-        rangeTable.put(230.0, 4434.0+kRangeOffset);
-        rangeTable.put(240.0, 4584.0+kRangeOffset);
-        rangeTable.put(250.0, 4794.0+kRangeOffset);
-        rangeTable.put(260.0, 5034.0+kRangeOffset);
-        rangeTable.put(270.0, 5234.0+kRangeOffset);
         
         // Create hashmap to store all values with keys
-        keyMap = new HashMap<String, Double>();
+        // The second parameter is the default value
+        keyMap = new HashMap<String, Object>();
         keyMap.put(brightKey, 0.0);
         keyMap.put(contrastKey, 0.0);
         keyMap.put(hueMinKey, 0.0);
@@ -139,55 +130,102 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         keyMap.put(valMinKey, 0.0);
         keyMap.put(valMaxKey, 0.0);
         keyMap.put(goalAlignToleranceKey, 0.0);
+        keyMap.put(cameraHeightInchesKey, 0.0);
+        keyMap.put(cameraPitchDegKey, 0.0);
+        keyMap.put(topTargetHeightInchesKey, 0.0);
+        
+        // PROBABLY THE RIGHT WAY TO DO IT
+        // Comment this out to do offsite testing
+//        Robot.setHost("10.79.79.2");
+        Robot.setHost("127.0.0.1");
+        Robot.setPort(1735);
+        Robot.setTeam(7979);
+        Robot.getTable().addTableListener(this);
+        
+        // Setup Network table (MUST BE BEFORE LOAD CSV LOGIC)
+//        NetworkTable.setTeam(7979);
+//        NetworkTable.setIPAddress("127.0.0.1");
+//        netTable = NetworkTable.getTable("datatable");
         
         try 
         {
-            // Load HSV Threshold values from CSV File
+            // Load Settings from CSV File
             this.loadSettingsFile();
         } 
-        catch (IOException ex) 
+        catch (Exception ex) 
         {
-            handleError(ex);
+            handleCSVFileError(ex);
         }
-        
-        // Init NetworkListener for changed keys
-        Robot.getTable().addListenerToAll(this);
         
         DaisyExtensions.init();
     }
     
-    private void loadSettingsFile() throws IOException
+    private void loadSettingsFile() throws Exception
     {
         try {
             FileReader fr = new FileReader(DEFAULT_CSV_FILENAME);
             BufferedReader br = new BufferedReader(fr);
-            String buffer;
+            String buffer = "";
             while((buffer = br.readLine()) != null)
             {
-                // Remove unwanted line separators
-                buffer = buffer.replace(s_lineSeparator, "");
-                
-                String key = "";
-                double numValue = 0.0;
-                
-                // Get key and value
-                if(buffer.contains(","))
+                if(buffer != "")
                 {
-                    String[] temp = buffer.split(",");
-                    key = temp[0];
-                    numValue = Double.valueOf(temp[1]);
+                    // Remove unwanted line separators
+                    buffer = buffer.replace(s_lineSeparator, "");
+                    String key = "";
+                    Object objValue = null;
+
+                    // Get key and value
+                    String[] temp = null;
+                    if(buffer.contains(",") && !buffer.contains(", "))
+                    {
+                        temp = buffer.split(",");
+                        key = temp[0];
+                    }
+                    else if(buffer.contains(", "))
+                    {
+                        temp = buffer.split(", ");
+                        key = temp[0];
+                    }
+                    
+                    // Determine the correct type
+                    if(temp[1].equals("true") || temp[1].equals("false"))
+                    {
+                        // Boolean
+                        objValue = (temp[1].equals(true)) ? true : false;
+                    }
+                    else if(temp[1].startsWith("\"") && temp[1].endsWith("\""))
+                    {
+                        // String
+                        objValue = temp[1].substring(1, temp[1].length() - 2); // Take off beginning and end quotes
+                    }
+                    else if(temp[1].equals(""))
+                    {
+                        // Empty String
+                        objValue = temp[1];
+                    }
+                    else
+                    {
+                        // Double
+                        objValue = Double.valueOf(temp[1]);
+                    }
+
+                    // Change corresponding value
+                    keyMap.put(key, objValue);
+
+                    if(objValue.getClass() == Boolean.class)
+                    {
+                        Robot.getTable().putBoolean(key, (Boolean)objValue);
+                    }
+                    else if(objValue.getClass() == String.class)
+                    {
+                        Robot.getTable().putString(key, (String)objValue);
+                    }
+                    else if(objValue.getClass() == Double.class)
+                    {
+                        Robot.getTable().putNumber(key, (Double)objValue);
+                    }
                 }
-                else if(buffer.contains(", "))
-                {
-                    String[] temp = buffer.split(", ");
-                    key = temp[0];
-                    numValue = Double.valueOf(temp[1]);
-                }
-                
-                // Change corresponding value
-                keyMap.put(key, numValue);
-                Robot.getTable().putDouble(key, numValue);
-                
             }
             fr.close();
             
@@ -200,21 +238,49 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 Iterator i = keyMap.entrySet().iterator();
                 while(i.hasNext())
                 {
-                    Map.Entry<String, Double> entry = (Map.Entry<String, Double>) i.next();
-                    fw.write(entry.getKey() + ", 0.0" + s_lineSeparator);
+                    Map.Entry<String, Object> entry = (Map.Entry<String, Object>) i.next();
+                    
+                    // Write defaults depending on the data type
+                    if(entry.getValue().getClass() == Boolean.class)
+                    {
+                        fw.write(entry.getKey() + ", " + Boolean.toString((Boolean)entry.getValue()) + s_lineSeparator);
+                    }
+                    else if(entry.getValue().getClass() == String.class)
+                    {
+                        fw.write(entry.getKey() + ", " + "\"" + entry.getValue() + "\"" + s_lineSeparator);
+                    }
+                    else if(entry.getValue().getClass() == Double.class)
+                    {
+                        fw.write(entry.getKey() + ", " + Double.toString((Double)entry.getValue()) + s_lineSeparator);
+                    }
+                    
                 }
                 
                 fw.flush();
                 fw.close();
                 
-                // Set NetworkTable values to 0
+                // Set NetworkTable values to default depending on data type
                 for(String mapKey : keyMap.keySet())
                 {
-                    Robot.getTable().putDouble(mapKey, 0.0);
+                    if(keyMap.get(mapKey).getClass() == Boolean.class)
+                    {
+                        if(keyMap.get(mapKey) != null)
+                        {
+                            Robot.getTable().putBoolean(mapKey, (Boolean)keyMap.get(mapKey));
+                        }
+                    }
+                    else if(keyMap.get(mapKey).getClass() == String.class)
+                    {
+                        Robot.getTable().putString(mapKey, (String)keyMap.get(mapKey));
+                    }
+                    else if(keyMap.get(mapKey).getClass() == Double.class)
+                    {
+                        Robot.getTable().putNumber(mapKey, (Double)keyMap.get(mapKey));
+                    }
                 }
                 
             } catch (IOException iEx) {
-                handleError(iEx);
+                handleCSVFileError(iEx);
             }
         }
     }
@@ -234,8 +300,21 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                     Iterator i = keyMap.entrySet().iterator();
                     while(i.hasNext())
                     {
-                        Map.Entry<String, Double> entry = (Map.Entry<String, Double>) i.next();
-                        fw.write(entry.getKey() + ", " + Double.toString(entry.getValue()) + s_lineSeparator);
+                        Map.Entry<String, Object> entry = (Map.Entry<String, Object>) i.next();
+                        
+                        // Write values depending on the data type
+                        if(entry.getValue().getClass() == Boolean.class)
+                        {
+                            fw.write(entry.getKey() + ", " + Boolean.toString((Boolean)entry.getValue()) + s_lineSeparator);
+                        }
+                        else if(entry.getValue().getClass() == String.class)
+                        {
+                            fw.write(entry.getKey() + ", " + "\"" + (String)entry.getValue() + "\"" + s_lineSeparator);
+                        }
+                        else if(entry.getValue().getClass() == Double.class)
+                        {
+                            fw.write(entry.getKey() + ", " + Double.toString((Double)entry.getValue()) + s_lineSeparator);
+                        }
                     }
                     
                     fw.flush();
@@ -243,11 +322,11 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 } 
                 catch (FileNotFoundException ex) 
                 {
-                    handleError(ex);
+                    handleCSVFileError(ex);
                 }
                 catch (IOException iEx)
                 {
-                    handleError(iEx);
+                    handleCSVFileError(iEx);
                 }
                 
                 // State the save is finished
@@ -265,35 +344,24 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         // Assign Settings Values from SmartDashboard.
         for(String mapKey : keyMap.keySet())
         {
-            keyMap.put(mapKey, Robot.getTable().getDouble(mapKey));
-        }
-    }
-    
-    public double getRPMsForRange(double range)
-    {
-        double lowKey = -1.0;
-        double lowVal = -1.0;
-        for( double key : rangeTable.keySet() )
-        {
-            if( range < key )
+            keyMap.put(mapKey, Robot.getTable().getNumber(mapKey));
+            
+            if(keyMap.get(mapKey).getClass() == Boolean.class)
             {
-                double highVal = rangeTable.get(key);
-                if( lowKey > 0.0 )
+                if(keyMap.get(mapKey) != null)
                 {
-                    double m = (range-lowKey)/(key-lowKey);
-                    return lowVal+m*(highVal-lowVal);
+                    keyMap.put(mapKey, Robot.getTable().getBoolean(mapKey));
                 }
-                else
-                {
-                    return highVal;
-                }
-                    
             }
-            lowKey = key;
-            lowVal = rangeTable.get(key);
+            else if(keyMap.get(mapKey).getClass() == String.class)
+            {
+                keyMap.put(mapKey, Robot.getTable().getString(mapKey));
+            }
+            else if(keyMap.get(mapKey).getClass() == Double.class)
+            {
+                keyMap.put(mapKey, Robot.getTable().getNumber(mapKey));
+            }
         }
-
-        return 5234.0+kRangeOffset;
     }
     
     @Override
@@ -306,7 +374,7 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         {
             try
             {
-                heading = Robot.getTable().getDouble("Heading");
+                heading = Robot.getTable().getNumber("Heading");
             }
             catch( NoSuchElementException e)
             {
@@ -350,16 +418,16 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         // because if you call INV second, you will overwrite the hue1 init image.
         
         // Take input of hue1(init image), output of function to hue2(Output is a binary image)
-        opencv_imgproc.cvThreshold(hue1, hue2, keyMap.get(hueMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
-        opencv_imgproc.cvThreshold(hue1, hue1, keyMap.get(hueMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(hue1, hue2, (Double)keyMap.get(hueMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(hue1, hue1, (Double)keyMap.get(hueMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
 
         // Saturation
-        opencv_imgproc.cvThreshold(sat1, sat2, keyMap.get(satMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
-        opencv_imgproc.cvThreshold(sat1, sat1, keyMap.get(satMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(sat1, sat2, (Double)keyMap.get(satMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(sat1, sat1, (Double)keyMap.get(satMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
 
         // Value
-        opencv_imgproc.cvThreshold(val1, val2, keyMap.get(valMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
-        opencv_imgproc.cvThreshold(val1, val1, keyMap.get(valMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
+        opencv_imgproc.cvThreshold(val1, val2, (Double)keyMap.get(valMaxKey), 255, opencv_imgproc.CV_THRESH_BINARY_INV);
+        opencv_imgproc.cvThreshold(val1, val1, (Double)keyMap.get(valMinKey), 255, opencv_imgproc.CV_THRESH_BINARY);
 
         
         // Combine the results to obtain our binary image which should for the most
@@ -388,20 +456,49 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         WPIBinaryImage binWpi = DaisyExtensions.makeWPIBinaryImage(bin);
         contours = DaisyExtensions.findConvexContours(binWpi);
 
-        polygons = new ArrayList<WPIPolygon>();
+        // Process image for rectangular goals
+        this.processForRectangularGoals(rawImage, heading);
+
+        // Draw a crosshair (line down the middle)
+        rawImage.drawLine(linePt1, linePt2, alignedColor, 2);
+
+        DaisyExtensions.releaseMemory();
+
+        //System.gc();
+
+        // Look to see if button was pressed to save settings
+        try{
+            if(Robot.getPreferences().getBoolean(saveKey) && !saving){
+                this.saveSettingsFile();
+                saving = true;
+            }
+        }
+        catch( NoSuchElementException e)
+        {
+        }
+        catch( IllegalArgumentException e )
+        {
+        }
+        
+        return rawImage;
+    }
+    
+    private void processForRectangularGoals(WPIColorImage rawImage, double heading) 
+    {
+        rectGoalPolygons = new ArrayList<WPIPolygon>();
         for (WPIContour c : contours)
         {
             double ratio = ((double) c.getHeight()) / ((double) c.getWidth());
-            if (ratio < 1.0 && ratio > 0.5 && c.getWidth() > kMinWidth && c.getWidth() < kMaxWidth)
+            if (ratio < 1.0 && ratio > 0.5 && c.getWidth() > kMinWidthRectGoals && c.getWidth() < kMaxWidthRectGoals)
             {
-                polygons.add(c.approxPolygon(20));
+                rectGoalPolygons.add(c.approxPolygon(20));
             }
         }
-
+        
         WPIPolygon square = null;
         int highest = Integer.MAX_VALUE;
 
-        for (WPIPolygon p : polygons)
+        for (WPIPolygon p : rectGoalPolygons)
         {
             if (p.isConvex() && p.getNumVertices() == 4)
             {
@@ -477,21 +574,22 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
             double y = square.getY() + (square.getHeight() / 2);
             y = -((2 * (y / size.height())) - 1);
 
+            double topTargetHeightInches = (Double)keyMap.get(topTargetHeightInchesKey);
+            double cameraHeightInches = (Double)keyMap.get(cameraHeightInchesKey);
+            double cameraPitchDeg = (Double)keyMap.get(cameraPitchDegKey);
+            
             // Find azimuth (horizontal degrees needed to line up with target). This is given as -180 being completely left,
             // +180 being completely right, and 0 being completely lined up.
             double azimuth = this.boundAngle0to180DegreesWithDirection(x*kHorizontalFOVDeg/2.0 + heading - kShooterOffsetDeg);
-            double range = (kTopTargetHeightIn-kCameraHeightIn)/Math.tan((y*kVerticalFOVDeg/2.0 + kCameraPitchDeg)*Math.PI/180.0);
-            double rpms = getRPMsForRange(range);
+            double range = (topTargetHeightInches - cameraHeightInches)
+                    / Math.tan((y*kVerticalFOVDeg/2.0 + cameraPitchDeg)*Math.PI/180.0);
 
             if (!m_debugMode)
             {
                 // Outputs values to the dashboard
-                Robot.getTable().beginTransaction();
                 Robot.getTable().putBoolean("found", true);
-                Robot.getTable().putDouble("azimuth", azimuth);
-                Robot.getTable().putDouble("range", range);
-                Robot.getTable().putDouble("rpms", rpms);
-                Robot.getTable().endTransaction();
+                Robot.getTable().putNumber("azimuth", azimuth);
+                Robot.getTable().putNumber("range", range);
             } else
             {
                 System.out.println("Target found");
@@ -499,12 +597,12 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 System.out.println("y: " + y);
                 System.out.println("azimuth: " + azimuth);
                 System.out.println("range: " + range);
-                System.out.println("rpms: " + rpms);
             }
             
             // Draw outline around highest goal
+            double goalAlignTolerance = (Double)keyMap.get(goalAlignToleranceKey);
             double centerX = square.getX() + square.getWidth()/2;
-            if(centerX >= linePt1.getX()-keyMap.get(goalAlignToleranceKey) && centerX <= linePt1.getX()+keyMap.get(goalAlignToleranceKey))
+            if(centerX >= linePt1.getX()-goalAlignTolerance && centerX <= linePt1.getX()+goalAlignTolerance)
             {
                 // Draw Aligned Outline
                 rawImage.drawPolygon(square, alignedColor, 7);
@@ -526,31 +624,164 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
                 System.out.println("Target not found");
             }
         }
-
-        // Draw a crosshair (line down the middle)
-        rawImage.drawLine(linePt1, linePt2, alignedColor, 2);
-
-        DaisyExtensions.releaseMemory();
-
-        //System.gc();
-
-        // Look to see if button was pressed to save settings
-        try{
-            if(Robot.getPreferences().getBoolean(saveKey) && !saving){
-                this.saveSettingsFile();
-                saving = true;
-            }
-        }
-        catch( NoSuchElementException e)
-        {
-        }
-        catch( IllegalArgumentException e )
-        {
-        }
-        
-        return rawImage;
     }
 
+    private void processForPyramidGoals(WPIColorImage rawImage, double heading)
+    {
+        // First we find the two rectangles, then we find the two closest
+        // to each other, then we find the points to make a triangle, then
+        // we find the centroid of the imaginary triangle.
+        
+        // THESE VALUES OF THE CONTOUR RATIOS ARE ASSUMED TO WORK BUT
+        // ARE PROBABLY NOT THE RIGHT ONES SINCE THEY DO NOT REPRESENT
+        // THE SMALL RECTANGULAR TARGETS
+        
+        // Categorize polygons as either horizontal or vertical pyramid polygons
+        pyramidGoalHPolygons = new ArrayList<WPIPolygon>();
+        pyramidGoalVPolygons = new ArrayList<WPIPolygon>();
+        for (WPIContour c : contours)
+        {
+            double ratio = ((double) c.getHeight()) / ((double) c.getWidth());
+            if (ratio < 1.0 && ratio > 0.5 && c.getWidth() > kMinWidthPyramidHGoals && c.getWidth() < kMaxWidthPyramidHGoals)
+            {
+                pyramidGoalHPolygons.add(c.approxPolygon(20));
+            }
+            else if(ratio < 1.0 && ratio > 0.5 && c.getWidth() > kMinWidthPyramidVGoals && c.getWidth() < kMaxWidthPyramidVGoals)
+            {
+                pyramidGoalVPolygons.add(c.approxPolygon(20));
+            }
+        }
+
+        // Look for horizontal pyramid goal rects
+        horizontalPyramidRects = new ArrayList<HorizontalPyramidRect>(); // Stores all valid horizontal pyramid rects and their values
+        for (WPIPolygon p : pyramidGoalHPolygons)
+        {
+            if (p.isConvex() && p.getNumVertices() == 4)
+            {
+                // We passed the first test...we fit a rectangle to the polygon
+                // Now do some more tests
+
+                WPIPoint[] points = p.getPoints();
+                // We expect to see a top line that is nearly horizontal, and two side lines that are nearly vertical
+                int numNearlyHorizontal = 0;
+                int numNearlyVertical = 0;
+                for( int i = 0; i < 4; i++ )
+                {
+                    double dy = points[i].getY() - points[(i+1) % 4].getY(); // Change in Y from one point to the next
+                    double dx = points[i].getX() - points[(i+1) % 4].getX(); // Change in X from one point to the next
+                    double slope = Double.MAX_VALUE;
+                    // If slope not 0, in other words not perfectly horizontal
+                    if( dx != 0 ) 
+                    {
+                        // Find slope of line
+                        slope = Math.abs(dy/dx);
+                    } 
+
+                    // Increment number of horizontal or vertical sides depending on if the slope is
+                    // closer to being horizontal or if the slope is closer to being verticle.
+                    if( slope < kNearlyHorizontalSlope )
+                    {
+                        ++numNearlyHorizontal;
+                    }
+                    else if( slope > kNearlyVerticalSlope )
+                    {
+                        ++numNearlyVertical;
+                    }
+                }
+
+                // Since we assume the top line is horizontal, the funciton only requires that
+                // we have 1 nearly horizontal side and 2 nearly verticle sides to consider it
+                // a target.
+                if(numNearlyHorizontal >= 1 && numNearlyVertical == 2)
+                {
+                    // Draw a polygon overlay on the image (visual aid for drivers to see the rectangles)
+                    rawImage.drawPolygon(p, WPIColor.BLUE, 2);
+
+                    // Store the left, right, and midpoint coordinates for future calculations
+                    // The Y values are the middle of the polygon, not the top or bottom
+                    HorizontalPyramidRect rect = new HorizontalPyramidRect(p.getX(),                    //LeftX
+                                                                            p.getX() + p.getWidth(),    //RightX
+                                                                            p.getY() + p.getHeight()/2, //LeftY
+                                                                            p.getY() + p.getHeight()/2, //RightY
+                                                                            p.getWidth(), p.getHeight());   //Width, Height
+                    
+                    horizontalPyramidRects.add(rect); // add the rect to the arraylist of valid horizontal pyramid rects
+                }
+            }
+            else
+            {
+                // Not an acceptable target
+                rawImage.drawPolygon(p, WPIColor.YELLOW, 1);
+            }
+        }
+        
+        // Look for vertical pyramid goal rects
+        verticalPyramidRects = new ArrayList<VerticalPyramidRect>(); // Stores all valid vertical pyramid rects and their values
+        for (WPIPolygon p : pyramidGoalVPolygons)
+        {
+            if (p.isConvex() && p.getNumVertices() == 4)
+            {
+                // We passed the first test...we fit a rectangle to the polygon
+                // Now do some more tests
+
+                WPIPoint[] points = p.getPoints();
+                // We expect to see a top line that is nearly horizontal, and two side lines that are nearly vertical
+                int numNearlyHorizontal = 0;
+                int numNearlyVertical = 0;
+                for( int i = 0; i < 4; i++ )
+                {
+                    double dy = points[i].getY() - points[(i+1) % 4].getY(); // Change in Y from one point to the next
+                    double dx = points[i].getX() - points[(i+1) % 4].getX(); // Change in X from one point to the next
+                    double slope = Double.MAX_VALUE;
+                    // If slope not 0, in other words not perfectly horizontal
+                    if( dx != 0 ) 
+                    {
+                        // Find slope of line
+                        slope = Math.abs(dy/dx);
+                    } 
+
+                    // Increment number of horizontal or vertical sides depending on if the slope is
+                    // closer to being horizontal or if the slope is closer to being verticle.
+                    if( slope < kNearlyHorizontalSlope )
+                    {
+                        ++numNearlyHorizontal;
+                    }
+                    else if( slope > kNearlyVerticalSlope )
+                    {
+                        ++numNearlyVertical;
+                    }
+                }
+
+                // Since we assume the top line is horizontal, the funciton only requires that
+                // we have 1 nearly horizontal side and 2 nearly verticle sides to consider it
+                // a target.
+                if(numNearlyHorizontal >= 1 && numNearlyVertical == 2)
+                {
+                    // Draw a polygon overlay on the image (visual aid for drivers to see the rectangles)
+                    rawImage.drawPolygon(p, WPIColor.BLUE, 2);
+
+                    // Store the top point of the vertical polygon
+                    // The X value is the middle of the polygon, and the Y value is the top of the polygon
+                    VerticalPyramidRect rect = new VerticalPyramidRect(p.getX() + p.getWidth()/2,       //TopX
+                                                                        p.getY(),                       //TopY
+                                                                        p.getWidth(), p.getHeight());   //Width, Height
+                    
+                    verticalPyramidRects.add(rect); // add the rect to the arraylist of valid vertical pyramid rects
+                }
+            }
+            else
+            {
+                // Not an acceptable target
+                rawImage.drawPolygon(p, WPIColor.YELLOW, 1);
+            }
+        }
+        
+        // Find horizontal and vertical rects that are closest to each other in proportion to their size
+        // The proportion makes it so that farther away goals that appear smaller in the image don't get
+        // priority when looking for correct goals.
+        
+    }
+    
     private double boundAngle0to180DegreesWithDirection(double angle)
     {
         // Find coterminal angle
@@ -574,46 +805,47 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         
     }
 
-    private void handleError(Exception e)
+    private void handleMiscError(Exception e)
+    {
+        e.printStackTrace();
+        JOptionPane.showMessageDialog(null,
+            "An error occurred in the program.",
+            "Error in program",
+            JOptionPane.ERROR_MESSAGE);
+    }
+    
+    private void handleCSVFileError(Exception e)
     {
         e.printStackTrace();
         JOptionPane.showMessageDialog(null,
             "An error occurred when attempting to "
-            + "open the CSV file for writing. ",
+            + "open the CSV file. ",
             "Unable to Open CSV File",
             JOptionPane.ERROR_MESSAGE);
     }
     
-    @Override
-    public void valueChanged(String key, Object value) {
-        
-        // If key value was changed concerning this widget
-        boolean concernsUs = false;
-        for(String mapKey : keyMap.keySet())
+   @Override
+    public void valueChanged(ITable itable, String key, Object value, boolean newValue) 
+    {
+        if(!newValue) // Make sure this is set to not pay attention to new values (ERRORS WILL HAPPEN AT loadSettingsFile)
         {
-            // If key is needed by this program
-            if(mapKey.equals(key))
+            // If key value was changed concerning this widget
+            boolean concernsUs = false;
+            for(String mapKey : keyMap.keySet())
             {
-                concernsUs = true;
+                // If key is needed by this program
+                if(mapKey.equals(key))
+                {
+                    concernsUs = true;
+                }
+            }
+
+            if(concernsUs)
+            {
+                // Reload the values into the widget
+                this.updateLocalSettings();
             }
         }
-        
-        if(concernsUs)
-        {
-            // Reload the values into the widget
-            this.updateLocalSettings();
-        }
-    }
-
-    @Override
-    public void valueConfirmed(String key, Object value) {
-        valueChanged(key, value);
-    }
-
-    @Override
-    public void disconnect() {
-        // Save HSV Threshold values when widget is removed.
-        this.saveSettingsFile();
     }
     
     
@@ -687,4 +919,5 @@ public class KrunchCVWidget extends WPICameraExtension implements NetworkListene
         System.out.format("(%.2f frames per second)%n", 1000.0 / milliseconds);
         System.exit(0);
     }
+    
 }
