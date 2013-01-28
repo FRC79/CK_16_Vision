@@ -1,0 +1,64 @@
+<xml version="1.0">
+<dashboard>
+	<static-widget class="team79.smartdashboard.extension.krunchcv.SaveButton">
+		<location x="4" y="295"/>
+	</static-widget>
+	<widget field="Top Target Height Inches" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="816" y="12"/>
+		<width>176</width>
+	</widget>
+	<widget field="Camera Pitch Degree" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="816" y="44"/>
+		<width>176</width>
+	</widget>
+	<widget field="Camera Height in Inches" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="816" y="76"/>
+		<width>176</width>
+	</widget>
+	<widget field="G.O.A.T." type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="30" y="268"/>
+		<width>82</width>
+	</widget>
+	<widget field="VAL MAX" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="16" y="236"/>
+		<width>96</width>
+	</widget>
+	<widget field="VAL MIN" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="16" y="204"/>
+		<width>96</width>
+	</widget>
+	<widget field="SAT MAX" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="15" y="172"/>
+		<width>97</width>
+	</widget>
+	<widget field="SAT MIN" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="16" y="140"/>
+		<width>96</width>
+	</widget>
+	<widget field="HUE MAX" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="14" y="108"/>
+		<width>98</width>
+	</widget>
+	<widget field="HUE MIN" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="16" y="76"/>
+		<width>96</width>
+	</widget>
+	<widget field="CONTRAST" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="16" y="44"/>
+		<width>96</width>
+	</widget>
+	<widget field="BRIGHTNESS" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="12" y="16"/>
+		<width>100</width>
+	</widget>
+	<static-widget class="team79.smartdashboard.extension.krunchcv.KrunchCVWidget">
+		<location x="124" y="0"/>
+		<property name="Camera IP Address" value="10.79.79.101"/>
+		<property name="Team Number" value="7979"/>
+		<property name="Network Table IP" value="10.79.79.2"/>
+		<property name="Table name" value="datatable"/>
+	</static-widget>
+</dashboard>
+<live-window>
+</live-window>
+</xml>
