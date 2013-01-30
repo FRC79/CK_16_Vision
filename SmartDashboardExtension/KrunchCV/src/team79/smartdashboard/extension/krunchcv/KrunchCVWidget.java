@@ -7,6 +7,9 @@ import com.googlecode.javacv.cpp.opencv_core.IplImage;
 import com.googlecode.javacv.cpp.opencv_imgproc;
 import com.googlecode.javacv.cpp.opencv_imgproc.IplConvKernel;
 import edu.wpi.first.smartdashboard.camera.WPICameraExtension;
+import edu.wpi.first.smartdashboard.properties.IntegerProperty;
+import edu.wpi.first.smartdashboard.properties.Property;
+import edu.wpi.first.smartdashboard.properties.StringProperty;
 import edu.wpi.first.smartdashboard.robot.Robot;
 import edu.wpi.first.wpijavacv.DaisyExtensions;
 import edu.wpi.first.wpijavacv.WPIBinaryImage;
@@ -19,6 +22,7 @@ import edu.wpi.first.wpijavacv.WPIPolygon;
 import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.tables.ITable;
 import edu.wpi.first.wpilibj.tables.ITableListener;
+import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -48,7 +52,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     // Constants that need to be tuned
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20)); // Slope of an acceptable horizontal line in degrees
     private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90-20)); // Slope of an acceptable vertical line in degrees
-    private static final int kMinWidthRectGoals = 20; // Contour width ratios of rectangular goals
+    private static final int kMinWidthRectGoals = 40; // Contour width ratios of rectangular goals
     private static final int kMaxWidthRectGoals = 200;
     private static final int kMinWidthPyramidHGoals = 20; // Contour width ratios of pyramid horizontal goals *NEEDS TO BE CHANGED
     private static final int kMaxWidthPyramidHGoals = 200;
@@ -61,6 +65,20 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 
     private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg; // Vertical field of view of camera *(FROM 640x480 images)
 
+    
+    // Widget Property keys
+    private final String teamNumberKey = "Team Number";
+    private final String ipKey = "Network Table IP";
+    private final String portKey = "Network Table Port";
+    private final String tableNameKey = "Table name";
+    
+    // Widget Properties
+    public final IntegerProperty TEAM_NUMBER_PROPERTY = new IntegerProperty(this, teamNumberKey, 79);
+    public final StringProperty IP_PROPERTY = new StringProperty(this, ipKey, "10.0.79.2");
+    public final IntegerProperty PORT_PROPERTY = new IntegerProperty(this, portKey, 1735);
+    public final StringProperty TABLE_NAME_PROPERTY = new StringProperty(this, tableNameKey); // Not really needed (as of now)
+    
+    
     // Constants that pertain to HSV threshold value file
     private static final String DEFAULT_CSV_FILENAME = "KrunchCVSettings.txt";
     private static final String s_lineSeparator = System.getProperty("line.separator");
@@ -68,9 +86,6 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     // SmartDashboard Key Values (DOUBLES ONLY)
     Map<String, Object> keyMap;
     
-    private final String teamNumberKey = "TEAM NUMBER";
-    private final String ipKey = "IP";
-    private final String tableNameKey = "TABLE NAME";
     private final String brightKey = "BRIGHTNESS";
     private final String contrastKey = "CONTRAST";
     private final String hueMinKey = "HUE MIN";
@@ -89,6 +104,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     private boolean saving = false;
 
     private boolean m_debugMode = false;
+    
+    private CanvasFrame cf;
 
     private NetworkTable netTable = null;
     
@@ -118,6 +135,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
         m_debugMode = debug;
         morphKernel = IplConvKernel.create(3, 3, 1, 1, opencv_imgproc.CV_SHAPE_RECT, null);
         
+        cf = new CanvasFrame("Binary");
+        
         // Create hashmap to store all values with keys
         // The second parameter is the default value
         keyMap = new HashMap<String, Object>();
@@ -134,18 +153,9 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
         keyMap.put(cameraPitchDegKey, 0.0);
         keyMap.put(topTargetHeightInchesKey, 0.0);
         
-        // PROBABLY THE RIGHT WAY TO DO IT
-        // Comment this out to do offsite testing
-//        Robot.setHost("10.79.79.2");
-        Robot.setHost("127.0.0.1");
-        Robot.setPort(1735);
-        Robot.setTeam(7979);
-        Robot.getTable().addTableListener(this);
-        
-        // Setup Network table (MUST BE BEFORE LOAD CSV LOGIC)
-//        NetworkTable.setTeam(7979);
-//        NetworkTable.setIPAddress("127.0.0.1");
-//        netTable = NetworkTable.getTable("datatable");
+        // Update Properties (Setup networktable info)
+        this.updateFromProperties();
+
         
         try 
         {
@@ -364,6 +374,21 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
         }
     }
     
+    private void updateFromProperties() 
+    {
+        // PROBABLY THE RIGHT WAY TO DO IT
+        // Comment this out to do offsite testing
+        Robot.setHost(IP_PROPERTY.getValue());
+        Robot.setPort(PORT_PROPERTY.getValue());
+        Robot.setTeam(TEAM_NUMBER_PROPERTY.getValue());
+        Robot.getTable().addTableListener(this);
+        
+        // Setup Network table (MUST BE BEFORE LOAD CSV LOGIC)
+//        NetworkTable.setTeam(TEAM_NUMBER_PROPERTY.getValue());
+//        NetworkTable.setIPAddress(IP_PROPERTY.getValue());
+//        netTable = NetworkTable.getTable(TABLE_NAME_PROPERTY.getValue());
+    }
+    
     @Override
     public WPIImage processImage(WPIColorImage rawImage)
     {
@@ -440,8 +465,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
           opencv_core.cvAnd(val2, bin, bin, null);
 
         // Uncomment the next two lines to see the raw binary image
-        //CanvasFrame result = new CanvasFrame("binary");
-        //result.showImage(bin.getBufferedImage());
+//        CanvasFrame result = new CanvasFrame("binary");
+        cf.showImage(bin.getBufferedImage());
         
         // Fill in any gaps using binary morphology
         // Changing the 5th parameter changes the method, and changing the 6th parameter changes the number of iterations
@@ -450,7 +475,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 
         // Uncomment the next two lines to see the image post-morphology
         //CanvasFrame result2 = new CanvasFrame("morph");
-        //result2.showImage(bin.getBufferedImage());
+//        cf.showImage(bin.getBufferedImage());
 
         // Find contours
         WPIBinaryImage binWpi = DaisyExtensions.makeWPIBinaryImage(bin);
@@ -489,7 +514,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
         for (WPIContour c : contours)
         {
             double ratio = ((double) c.getHeight()) / ((double) c.getWidth());
-            if (ratio < 1.0 && ratio > 0.5 && c.getWidth() > kMinWidthRectGoals && c.getWidth() < kMaxWidthRectGoals)
+            if (ratio < 0.5 && ratio > 0.05 && c.getWidth() > kMinWidthRectGoals && c.getWidth() < kMaxWidthRectGoals)
             {
                 rectGoalPolygons.add(c.approxPolygon(20));
             }
@@ -845,6 +870,18 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
                 // Reload the values into the widget
                 this.updateLocalSettings();
             }
+        }
+    }
+
+   /* Property changed occurs when one of the widget's properties is changed by
+    * right-clicking the widget and hitting "properties." */
+    @Override
+    public void propertyChanged(Property property) 
+    {
+        if(property.equals(ipKey) || property.equals(portKey) || property.equals(teamNumberKey)
+                || property.equals(tableNameKey))
+        {
+            this.updateFromProperties();
         }
     }
     
