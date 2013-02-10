@@ -96,10 +96,14 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     private final String valMaxKey = "VAL MAX";
     private final String goalAlignToleranceKey = "G.O.A.T.";
     private final String cameraHeightInchesKey = "Camera Height in Inches"; // Height of camera from ground in inches
-    private final String cameraPitchDegKey = "Camera Pitch Degree"; // Camera pitch degree (as in pitch, roll, yaw)
+    private final String cameraPitchDegLowKey = "Camera Pitch Low"; // Deg for low angle
+    private final String cameraPitchDegHighKey = "Camera Pitch High"; // Deg for high angle
+    private final String shooterTiltedKey = "shooter tilted"; // Whether or not shooter is tilted
     private final String topTargetHeightInchesKey = "Top Target Height Inches"; // Height of the top target
     
     private static final String saveKey = "save"; // Boolean value
+    
+    private boolean shooterTilted = false;
     
     private boolean saving = false;
 
@@ -150,7 +154,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
         keyMap.put(valMaxKey, 0.0);
         keyMap.put(goalAlignToleranceKey, 0.0);
         keyMap.put(cameraHeightInchesKey, 0.0);
-        keyMap.put(cameraPitchDegKey, 0.0);
+        keyMap.put(cameraPitchDegLowKey, 0.0);
+        keyMap.put(cameraPitchDegHighKey, 0.0);
         keyMap.put(topTargetHeightInchesKey, 0.0);
         
         // Update Properties (Setup networktable info)
@@ -202,7 +207,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
                     if(temp[1].equals("true") || temp[1].equals("false"))
                     {
                         // Boolean
-                        objValue = (temp[1].equals(true)) ? true : false;
+                        objValue = (temp[1].equals("true")) ? true : false;
                     }
                     else if(temp[1].startsWith("\"") && temp[1].endsWith("\""))
                     {
@@ -421,7 +426,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
             sat2 = IplImage.create(size, 8, 1);
             val1 = IplImage.create(size, 8, 1);
             val2 = IplImage.create(size, 8, 1);
-            horizontalOffsetPixels =  (int)Math.round(kShooterOffsetDeg*(size.width()/kHorizontalFOVDeg));
+            horizontalOffsetPixels =  (int)Math.round(kShooterOffsetDeg *(size.width()/kHorizontalFOVDeg));
             
             // Line points for line that goes down the middle of the image when outputed on the dashboard
             linePt1 = new WPIPoint(size.width()/2+horizontalOffsetPixels,size.height()-1);
@@ -466,7 +471,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 
         // Uncomment the next two lines to see the raw binary image
 //        CanvasFrame result = new CanvasFrame("binary");
-        cf.showImage(bin.getBufferedImage());
+//        cf.showImage(bin.getBufferedImage());
         
         // Fill in any gaps using binary morphology
         // Changing the 5th parameter changes the method, and changing the 6th parameter changes the number of iterations
@@ -601,7 +606,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 
             double topTargetHeightInches = (Double)keyMap.get(topTargetHeightInchesKey);
             double cameraHeightInches = (Double)keyMap.get(cameraHeightInchesKey);
-            double cameraPitchDeg = (Double)keyMap.get(cameraPitchDegKey);
+            double cameraPitchDeg = (shooterTilted) ? (Double)keyMap.get(cameraPitchDegHighKey) : (Double)keyMap.get(cameraPitchDegLowKey);
             
             // Find azimuth (horizontal degrees needed to line up with target). This is given as -180 being completely left,
             // +180 being completely right, and 0 being completely lined up.
@@ -826,7 +831,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
             angle = (360.0 - angle) * -1;
         }
         
-        return angle;
+        return angle * -1; // Tweak
         
     }
 
@@ -852,6 +857,11 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
    @Override
     public void valueChanged(ITable itable, String key, Object value, boolean newValue) 
     {
+        if(key.equals(shooterTiltedKey)) // Update tilted value
+        {
+            shooterTilted = (Boolean)value;
+        }
+        
         if(!newValue) // Make sure this is set to not pay attention to new values (ERRORS WILL HAPPEN AT loadSettingsFile)
         {
             // If key value was changed concerning this widget
