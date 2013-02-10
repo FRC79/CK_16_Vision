@@ -1,5 +1,20 @@
 <xml version="1.0">
 <dashboard>
+	<widget field="Camera Pitch Low" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="822" y="36"/>
+	</widget>
+	<widget field="Camera Pitch High" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="820" y="60"/>
+	</widget>
+	<widget field="range" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="0" y="371"/>
+	</widget>
+	<widget field="azimuth" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="0" y="350"/>
+	</widget>
+	<widget field="found" type="Boolean" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
+		<location x="0" y="329"/>
+	</widget>
 	<static-widget class="team79.smartdashboard.extension.krunchcv.SaveButton">
 		<location x="4" y="295"/>
 	</static-widget>
@@ -7,12 +22,8 @@
 		<location x="816" y="12"/>
 		<width>176</width>
 	</widget>
-	<widget field="Camera Pitch Degree" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
-		<location x="816" y="44"/>
-		<width>176</width>
-	</widget>
 	<widget field="Camera Height in Inches" type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
-		<location x="816" y="76"/>
+		<location x="817" y="86"/>
 		<width>176</width>
 	</widget>
 	<widget field="G.O.A.T." type="Number" class="edu.wpi.first.smartdashboard.gui.elements.TextBox">
@@ -53,9 +64,7 @@
 	</widget>
 	<static-widget class="team79.smartdashboard.extension.krunchcv.KrunchCVWidget">
 		<location x="124" y="0"/>
-		<property name="Camera IP Address" value="10.79.79.101"/>
-		<property name="Team Number" value="7979"/>
-		<property name="Network Table IP" value="10.79.79.2"/>
+		<property name="Camera IP Address" value="10.0.79.100"/>
 		<property name="Table name" value="datatable"/>
 	</static-widget>
 </dashboard>

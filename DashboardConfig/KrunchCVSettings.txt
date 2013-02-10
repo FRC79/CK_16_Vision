@@ -1,12 +1,13 @@
-Top Target Height Inches, 53.5
 Camera Height in Inches, 4.375
-VAL MIN, 150.0
 CONTRAST, 0.0
 G.O.A.T., 5.0
+BRIGHTNESS, 0.0
+VAL MAX, 255.0
+Top Target Height Inches, 53.5
+Camera Pitch High, 0.0
+VAL MIN, 150.0
 HUE MAX, 153.0
 HUE MIN, 0.0
 SAT MIN, 0.0
-Camera Pitch Degree, 20.0
-BRIGHTNESS, 0.0
-VAL MAX, 255.0
 SAT MAX, 80.0
+Camera Pitch Low, 20.0
