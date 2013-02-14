@@ -471,7 +471,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 
         // Uncomment the next two lines to see the raw binary image
 //        CanvasFrame result = new CanvasFrame("binary");
-//        cf.showImage(bin.getBufferedImage());
+        cf.showImage(bin.getBufferedImage());
         
         // Fill in any gaps using binary morphology
         // Changing the 5th parameter changes the method, and changing the 6th parameter changes the number of iterations
