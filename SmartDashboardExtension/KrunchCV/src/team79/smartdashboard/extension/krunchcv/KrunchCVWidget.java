@@ -61,7 +61,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     private static final int kHoleClosingIterations = 9; // Number of iterations of morphology operation
     
     private static final double kShooterOffsetDeg = 0.0; // Offset for shooter
-    private static final double kHorizontalFOVDeg = 40.0; // Horizontal field of view of camera
+    private static final double kHorizontalFOVDeg = 47.0; // Horizontal field of view of camera
 
     private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg; // Vertical field of view of camera *(FROM 640x480 images)
 
