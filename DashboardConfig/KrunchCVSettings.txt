@@ -6,7 +6,8 @@ G.O.A.T., 5.0
 HUE MAX, 218.0
 HUE MIN, 0.0
 SAT MIN, 140.0
-Camera Pitch Degree, 20.0
+Camera Pitch Degree Low, 20.0
+Camera Pitch Degree High, 35.0
 BRIGHTNESS, 0.0
 VAL MAX, 255.0
 SAT MAX, 255.0
