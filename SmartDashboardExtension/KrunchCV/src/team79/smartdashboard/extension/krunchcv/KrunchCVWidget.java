@@ -125,8 +125,7 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     private IplImage hue1, hue2;
     private IplImage sat1, sat2;
     private IplImage val1, val2;
-    private WPIPoint linePt1;
-    private WPIPoint linePt2;
+    private WPIPoint linePt1, linePt2, linePt3, linePt4;
     private int horizontalOffsetPixels;
 
     public KrunchCVWidget()
@@ -431,6 +430,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
             // Line points for line that goes down the middle of the image when outputed on the dashboard
             linePt1 = new WPIPoint(size.width()/2+horizontalOffsetPixels,size.height()-1);
             linePt2 = new WPIPoint(size.width()/2+horizontalOffsetPixels,0);
+            linePt3 = new WPIPoint(0, size.height()/2);
+            linePt4 = new WPIPoint(size.width(), size.height()/2);
         }
         // Get the raw IplImages for OpenCV
         IplImage input = DaisyExtensions.getIplImage(rawImage);
@@ -491,6 +492,9 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
 
         // Draw a crosshair (line down the middle)
         rawImage.drawLine(linePt1, linePt2, alignedColor, 2);
+        
+        // Draw horizontal line in the middle
+        rawImage.drawLine(linePt3, linePt4, alignedColor, 2);
 
         DaisyExtensions.releaseMemory();
 
