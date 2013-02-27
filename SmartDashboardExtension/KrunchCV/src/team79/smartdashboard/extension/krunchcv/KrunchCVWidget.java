@@ -100,6 +100,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     private final String cameraPitchDegLowKey = "Camera Pitch Degree Low"; // Low angle camera pitch degree
     private final String cameraPitchDegHighKey = "Camera Pitch Degree High"; // High angle camera pitch degree
     private final String topTargetHeightInchesKey = "Top Target Height Inches"; // Height of the top target
+    private final String minWidthRectGoalsKey = "Min Width Rect Goals"; // Min width in pixels that vision will consider a goal
+    private final String maxWidthRectGoalsKey = "Max Width Rect Goals"; // Max width in pixels that vision will consider a goal
     
     private static final String saveKey = "save"; // Boolean value
     
@@ -156,6 +158,8 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
         keyMap.put(cameraPitchDegLowKey, 0.0);
         keyMap.put(cameraPitchDegHighKey, 0.0);
         keyMap.put(topTargetHeightInchesKey, 0.0);
+        keyMap.put(minWidthRectGoalsKey, 0.0);
+        keyMap.put(maxWidthRectGoalsKey, 0.0);
         
         // Update Properties (Setup networktable info)
         this.updateFromProperties();
@@ -520,10 +524,13 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
     private void processForRectangularGoals(WPIColorImage rawImage, double heading) 
     {
         rectGoalPolygons = new ArrayList<WPIPolygon>();
+        Double minWidthPixels = (Double)keyMap.get(minWidthRectGoalsKey);
+        Double maxWidthPixels = (Double)keyMap.get(maxWidthRectGoalsKey);
+        
         for (WPIContour c : contours)
         {
             double ratio = ((double) c.getHeight()) / ((double) c.getWidth());
-            if (ratio < 0.5 && ratio > 0.05 && c.getWidth() > kMinWidthRectGoals && c.getWidth() < kMaxWidthRectGoals)
+            if (ratio < 0.5 && ratio > 0.05 && c.getWidth() > minWidthPixels && c.getWidth() < maxWidthPixels)
             {
                 rectGoalPolygons.add(c.approxPolygon(20));
             }
@@ -636,7 +643,9 @@ public class KrunchCVWidget extends WPICameraExtension implements ITableListener
             // Draw outline around highest goal
             double goalAlignTolerance = (Double)keyMap.get(goalAlignToleranceKey);
             double centerX = square.getX() + square.getWidth()/2;
-            if(centerX >= linePt1.getX()-goalAlignTolerance && centerX <= linePt1.getX()+goalAlignTolerance)
+            double centerY = square.getY() + square.getHeight()/2;
+            if(centerX >= linePt1.getX()-goalAlignTolerance && centerX <= linePt1.getX()+goalAlignTolerance
+                    && centerY >= linePt3.getY()-goalAlignTolerance && centerY <= linePt3.getY()+goalAlignTolerance)
             {
                 // Draw Aligned Outline
                 rawImage.drawPolygon(square, alignedColor, 7);
