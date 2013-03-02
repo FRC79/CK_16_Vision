@@ -11,3 +11,5 @@ Camera Pitch Degree High, 35.0
 BRIGHTNESS, 0.0
 VAL MAX, 255.0
 SAT MAX, 255.0
+Min Width Rect Goals, 20.0
+Max Width Rect Goals, 400.0
